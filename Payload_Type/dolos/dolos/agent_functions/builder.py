@@ -1,4 +1,4 @@
-"""Dolos — Mythic Wrapper PayloadType (v0.9.1).
+"""Dolos — Mythic Wrapper PayloadType (v0.9.2).
 
 Dolos is a **wrapper** payload type. It takes an existing built payload (selected
 via Mythic's native "Create Wrapper" flow), transfers it to an external server
@@ -40,7 +40,7 @@ from dolos.ssh_client import SSHSessionLog
 logger = logging.getLogger(__name__)
 logging.getLogger("dolos").setLevel(logging.DEBUG)
 
-Version = "0.9.1"
+Version = "0.9.2"
 
 
 # ---------------------------------------------------------------------------
@@ -95,11 +95,11 @@ class Dolos(PayloadType):
     # out, so these relationships persist. Add new agents here + reinstall.
     wrapped_payloads = ["apollo", "merlin", "athena", "medusa", "hannibal", "freyja", "poopsie", "poseidon"]
     note = (
-        "Dolos v0.9.1 | The Craftsman of Lies — wrap an existing payload, "
+        "Dolos v0.9.2 | The Craftsman of Lies — wrap an existing payload, "
         "transfer it to an external server over SSH/SFTP, run an encoder "
         "(C# cradle, Donut, ShellcodePack, custom), and return the result. "
         "Built-in C# cradle encoder (csc.exe). Full session logging. "
-        "See docs for setup."
+        "Rotating file logs. See docs for setup."
     )
     supports_dynamic_loading = False
     mythic_encrypts = True
@@ -172,9 +172,9 @@ class Dolos(PayloadType):
         session_log = SSHSessionLog()
 
         logger.critical("[DOLOS-BUILD] ========== build() STARTED ==========")
-        logger.critical(f"[DOLOS-BUILD] wrapped_payload_uuid={self.wrapped_payload_uuid}")
-        logger.critical(f"[DOLOS-BUILD] wrapped_payload size={len(self.wrapped_payload) if self.wrapped_payload else 0} bytes")
-        logger.critical(f"[DOLOS-BUILD] filename={self.filename}")
+        logger.info(f"[DOLOS-BUILD] wrapped_payload_uuid={self.wrapped_payload_uuid}")
+        logger.info(f"[DOLOS-BUILD] wrapped_payload size={len(self.wrapped_payload) if self.wrapped_payload else 0} bytes")
+        logger.info(f"[DOLOS-BUILD] filename={self.filename}")
 
         # ── 1. Collect build parameters ──
 
@@ -197,7 +197,7 @@ class Dolos(PayloadType):
 
         payload_bytes = self.wrapped_payload
         payload_size = len(payload_bytes)
-        logger.critical(f"[DOLOS-BUILD] Input payload: {payload_size:,} bytes")
+        logger.info(f"[DOLOS-BUILD] Input payload: {payload_size:,} bytes")
 
         # ── Resolve encoder command from label ──
 
@@ -229,7 +229,7 @@ class Dolos(PayloadType):
             resp.build_message = "No SSH auth method configured. Set DOLOS_SSH_PRIVATE_KEY (key auth) or DOLOS_SSH_PASSWORD (password auth) in .env. See /docs/agents/dolos/setup for help."
             return resp
 
-        logger.critical(f"[DOLOS-BUILD] SSH config: {username}@{host}:{port} auth={auth_method}")
+        logger.info(f"[DOLOS-BUILD] SSH config: {username}@{host}:{port} auth={auth_method}")
 
         # ── Verify SSH connectivity (Step 1: Connecting) ──
 
@@ -255,7 +255,7 @@ class Dolos(PayloadType):
                 connect_kwargs["password"] = ssh_password
 
             client.connect(**connect_kwargs)
-            logger.critical(f"[DOLOS-BUILD] SSH connected to {host}:{port} via {auth_method}")
+            logger.info(f"[DOLOS-BUILD] SSH connected to {host}:{port} via {auth_method}")
         except Exception as e:
             session_log.connection_failed(str(e))
             await self._step("Connecting", f"SSH connection failed: {e}", False)
@@ -356,7 +356,7 @@ class Dolos(PayloadType):
         # ── 4. Run encoder command (Step 4: Processing) ──
 
         resolved_cmd = ssh_client.resolve_placeholders(encoder_command, workdir_cmd, remote_filenames)
-        logger.critical(f"[DOLOS-BUILD] Running encoder: {resolved_cmd[:200]}")
+        logger.info(f"[DOLOS-BUILD] Running encoder: {resolved_cmd[:200]}")
 
         session_log.running_command(resolved_cmd)
         await self._step("Processing", f"Running: {resolved_cmd[:120]}…", True)
@@ -401,11 +401,11 @@ class Dolos(PayloadType):
                 result_bytes = f.read()
                 output_exists = True
             session_log.result_downloaded(output_path, len(result_bytes))
-            logger.critical(f"[DOLOS-BUILD] Retrieved {len(result_bytes)} bytes from remote")
+            logger.info(f"[DOLOS-BUILD] Retrieved {len(result_bytes)} bytes from remote")
             await self._step("Retrieving", f"Downloaded {len(result_bytes):,} bytes from {output_path}", True)
         except IOError:
             session_log.result_missing(output_path)
-            logger.critical(f"[DOLOS-BUILD] Output file NOT found at {output_path}")
+            logger.info(f"[DOLOS-BUILD] Output file NOT found at {output_path}")
             await self._step("Retrieving", "Output file not found on remote server", False)
 
         # ── 6. Clean up remote workdir (Step 6: Cleaning) ──
@@ -523,13 +523,13 @@ class Dolos(PayloadType):
 
         # ── Build result ──
 
-        logger.critical(f"[DOLOS-BUILD] Setting resp.payload = {len(result_bytes)} bytes")
+        logger.info(f"[DOLOS-BUILD] Setting resp.payload = {len(result_bytes)} bytes")
 
         # Set a descriptive download filename based on detected output type.
         # Without this, Mythic uses the default (e.g., "dolos.exe") regardless
         # of actual content. With magic detection, a DLL gets .dll, etc.
         resp.updated_filename = download_filename
-        logger.critical(f"[DOLOS-BUILD] updated_filename = {resp.updated_filename} (magic: {magic_type})")
+        logger.info(f"[DOLOS-BUILD] updated_filename = {resp.updated_filename} (magic: {magic_type})")
 
         status_prefix = ""
         if status == "WARNING":
@@ -537,7 +537,7 @@ class Dolos(PayloadType):
 
         resp.status = BuildStatus.Success
         resp.payload = result_bytes  # lowercase! — the v0.5.1 lesson
-        logger.critical(f"[DOLOS-BUILD] resp.payload set, get_payload() = {len(resp.get_payload())} bytes")
+        logger.info(f"[DOLOS-BUILD] resp.payload set, get_payload() = {len(resp.get_payload())} bytes")
         resp.build_message = (
             f"{status_prefix}Wrapped {payload_size:,} → {len(result_bytes):,} bytes ({magic_type}) "
             f"via {encoder_label}. Download: {resp.updated_filename}"

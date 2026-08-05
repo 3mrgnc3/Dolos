@@ -28,6 +28,24 @@ running v0.5.1 or later.
 
 **Symptom:** Build step shows ❌ for SSH connectivity.
 
+**Possible causes:**
+1. **Wrong credentials** — Check `DOLOS_SSH_PASSWORD` and/or `DOLOS_SSH_PRIVATE_KEY` in your Mythic `.env`
+2. **Wrong host/port** — Verify `DOLOS_SSH_HOST` and `DOLOS_SSH_PORT` match your external server
+3. **Key auth failure** — If using `DOLOS_SSH_PRIVATE_KEY`, ensure it's the full PEM content (not a file path). Dolos tries key auth first, then password.
+4. **Network unreachable** — From the container, can you reach the SSH server? Use `docker exec dolos python3 -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('172.28.0.3', 22)); print('OK')"`
+
+### Container Logs
+
+The Dolos container writes two types of logs:
+1. **`docker logs dolos`** — Only CRITICAL severity (build start/end, hard errors). This is what mythic_container's root logger passes through.
+2. **File logs at `/tmp/dolos/dolos.log`** — DEBUG and above. All SSH/SFTP events, encoder output, connection details. Rotating (50MB max, 3 backups).
+
+To access file logs: `docker exec dolos cat /tmp/dolos/dolos.log`
+
+To configure: set `DOLOS_LOG_DIR`, `DOLOS_LOG_MAX_MB`, `DOLOS_LOG_MAX_BACKUPS` in `.env`.
+
+If file logs are not appearing, check that `/tmp/dolos/` is writable inside the container.
+
 **Causes and fixes:**
 
 1. **Wrong host/IP** — Check `DOLOS_SSH_HOST` in `.env`

@@ -24,10 +24,64 @@ import struct
 import tempfile
 import shutil
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 
 import paramiko
 
 logger = logging.getLogger(__name__)
+
+# ── Container log rotation ──
+# mythic_container's root logger suppresses DEBUG/INFO. We add a
+# RotatingFileHandler to the "dolos" logger so that DEBUG-level detail
+# is captured to disk (with size limits and rotation) while only
+# CRITICAL messages appear in docker logs.
+
+DOLOS_LOG_DIR = os.environ.get("DOLOS_LOG_DIR", "/tmp/dolos")
+DOLOS_LOG_MAX_MB = int(os.environ.get("DOLOS_LOG_MAX_MB", "50"))
+DOLOS_LOG_MAX_BACKUPS = int(os.environ.get("DOLOS_LOG_MAX_BACKUPS", "3"))
+
+
+def _setup_file_logging():
+    """Add a RotatingFileHandler to the 'dolos' logger.
+
+    Called once at module import. Creates /tmp/dolos/ (or DOLOS_LOG_DIR)
+    if it doesn't exist, then attaches a rotating file handler that
+    captures DEBUG and above. The handler rotates at DOLOS_LOG_MAX_MB MB
+    and keeps DOLOS_LOG_MAX_BACKUPS backup files.
+
+    This is safe to call even if the directory isn't writable — it just
+    won't add the handler and logs a warning.
+    """
+    dolos_logger = logging.getLogger("dolos")
+
+    # Don't add a duplicate handler if this module is reloaded
+    if any(isinstance(h, RotatingFileHandler) for h in dolos_logger.handlers):
+        return
+
+    try:
+        os.makedirs(DOLOS_LOG_DIR, exist_ok=True)
+    except OSError:
+        # Can't create log dir (e.g. read-only filesystem) — skip file logging
+        logger.warning("Cannot create log directory %s, file logging disabled", DOLOS_LOG_DIR)
+        return
+
+    handler = RotatingFileHandler(
+        filename=os.path.join(DOLOS_LOG_DIR, "dolos.log"),
+        maxBytes=DOLOS_LOG_MAX_MB * 1024 * 1024,
+        backupCount=DOLOS_LOG_MAX_BACKUPS,
+        encoding="utf-8",
+    )
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    ))
+    dolos_logger.addHandler(handler)
+    logger.info("File logging enabled: %s (max %dMB, %d backups)",
+                os.path.join(DOLOS_LOG_DIR, "dolos.log"),
+                DOLOS_LOG_MAX_MB, DOLOS_LOG_MAX_BACKUPS)
+
+
+_setup_file_logging()
 
 # Environment variable names (SSH config is env-only now, no build-param overrides)
 ENV_HOST = "DOLOS_SSH_HOST"
@@ -91,7 +145,13 @@ class SSHSessionLog:
             **extra,
         }
         self.events.append(event)
-        logger.critical(f"[DOLOS-LOG] [{phase}] [{level}] {message}")
+        # Map session log level to Python logging level so file logs get
+        # proper severity. Only errors go to docker logs (CRITICAL).
+        _level_map = {"INFO": logger.info, "SFTP": logger.info, "CMD": logger.info,
+                      "STDOUT": logger.debug, "STDERR": logger.warning,
+                      "WARN": logger.warning, "ERROR": logger.error}
+        _log_fn = _level_map.get(level, logger.info)
+        _log_fn(f"[DOLOS-LOG] [{phase}] [{level}] {message}")
 
     # ── Connection events ──
 
