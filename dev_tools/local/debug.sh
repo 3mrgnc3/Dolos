@@ -88,6 +88,24 @@ check_prereqs() {
 run_debug() {
     mkdir -p "$LOG_DIR"
 
+    # ── Load Dolos env vars from Mythic's .env ──
+    # Without these, builds will fail ("Encoder not found", can't SSH, etc.)
+    MYTHIC_ENV="/home/mrgnc/MythicC2/Mythic/.env"
+    if [ -f "$MYTHIC_ENV" ]; then
+        info "Loading env vars from $MYTHIC_ENV"
+        # Source only the DOLOS_ vars to avoid shell escaping issues with JSON
+        export DOLOS_REMOTE_COMMAND="$(grep '^DOLOS_REMOTE_COMMAND=' "$MYTHIC_ENV" | head -1 | sed "s/^DOLOS_REMOTE_COMMAND=//" | tr -d '"')"
+        export DOLOS_SSH_HOST="$(grep '^DOLOS_SSH_HOST=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_HOST=//' | tr -d '"')"
+        export DOLOS_SSH_PASSWORD="$(grep '^DOLOS_SSH_PASSWORD=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_PASSWORD=//' | tr -d '"')"
+        export DOLOS_SSH_USERNAME="$(grep '^DOLOS_SSH_USERNAME=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_USERNAME=//' | tr -d '"')"
+        export DOLOS_SSH_PORT="$(grep '^DOLOS_SSH_PORT=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_PORT=//' | tr -d '"')"
+        ok "DOLOS_SSH_HOST=$DOLOS_SSH_HOST"
+        ok "DOLOS_REMOTE_COMMAND has $(echo $DOLOS_REMOTE_COMMAND | python3 -c 'import sys,json; print(len(json.loads(sys.stdin.read())))' 2>/dev/null || echo '?') encoders"
+    else
+        warn "Mythic .env not found at $MYTHIC_ENV"
+        warn "Builds will fail without SSH/encoder config"
+    fi
+
     info "Starting Dolos in local debug mode..."
     info "  RABBITMQ_CONFIG=local  (127.0.0.1 RabbitMQ)"
     info "  DOLOS_DEV_MODE=1       (SSL bypass)"
@@ -101,6 +119,11 @@ run_debug() {
     RABBITMQ_CONFIG=local \
     DOLOS_DEV_MODE=1 \
     DOLOS_LOG_DIR="$LOG_DIR" \
+    DOLOS_REMOTE_COMMAND="$DOLOS_REMOTE_COMMAND" \
+    DOLOS_SSH_HOST="$DOLOS_SSH_HOST" \
+    DOLOS_SSH_PASSWORD="$DOLOS_SSH_PASSWORD" \
+    DOLOS_SSH_USERNAME="$DOLOS_SSH_USERNAME" \
+    DOLOS_SSH_PORT="${DOLOS_SSH_PORT:-22}" \
     "$VENV/bin/python" main.py
 }
 
