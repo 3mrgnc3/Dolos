@@ -1,0 +1,24 @@
+{
+  "exclude_payload_type": false,
+  "exclude_c2_profiles": true,
+  "exclude_documentation_payload": true,
+  "exclude_documentation_wrapper": false,
+  "exclude_documentation_c2": true,
+  "exclude_agent_icons": false,
+  "remote_images": {},
+  "docker-compose": {
+    "environment": [
+      "DOLOS_SSH_HOST=${DOLOS_SSH_HOST}",
+      "DOLOS_SSH_PASSWORD=${DOLOS_SSH_PASSWORD}",
+      "DOLOS_SSH_PRIVATE_KEY=${DOLOS_SSH_PRIVATE_KEY}",
+      "DOLOS_SSH_PORT=${DOLOS_SSH_PORT}",
+      "DOLOS_SSH_USERNAME=${DOLOS_SSH_USERNAME}",
+      "DOLOS_REMOTE_COMMAND=${DOLOS_REMOTE_COMMAND}",
+      "DOLOS_TIMEOUT=${DOLOS_TIMEOUT}",
+      "DOLOS_SSH_PUBLIC_KEY=${DOLOS_SSH_PUBLIC_KEY}",
+      "HASURA_SECRET=${HASURA_SECRET}",
+      "HASURA_HOST=${HASURA_HOST}",
+      "HASURA_PORT=${HASURA_PORT}"
+    ]
+  }
+}

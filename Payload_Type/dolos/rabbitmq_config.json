@@ -1,0 +1,5 @@
+{
+  "rabbitmq_host": "mythic_rabbitmq",
+  "rabbitmq_password": "",
+  "mythic_server_host": "mythic_server"
+}

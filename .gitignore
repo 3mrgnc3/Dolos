@@ -1,0 +1,45 @@
+# Dolos .gitignore
+
+## Project-local documentation (not tracked)
+CLAUDE.md
+DECISIONS.md
+PLAN.md
+
+## Read-only reference code (never tracked)
+reference_code/
+
+## Dev artifacts
+install_test*.txt
+*.log
+tools/
+screenshots/
+
+## Dev tooling
+# dev_tools/  # now tracked — test harness lives here
+mythic-mcp-conf.json
+.mcp.json
+.claude/
+
+## Python
+__pycache__/
+*.py[cod]
+Payload_Type/dolos/__pycache__/
+**/__pycache__/
+**/*.pyc
+
+## OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+## Secrets
+.env
+
+## Jupyter notebooks (testing only)
+*.ipynb
+
+## Root-level dev files (moved to dev_tools/)
+/encoder_v2.py
+/shellcode_test.py
