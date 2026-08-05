@@ -88,6 +88,19 @@ check_prereqs() {
 run_debug() {
     mkdir -p "$LOG_DIR"
 
+    # ── Stop Docker container if running (they compete for RabbitMQ) ──
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^dolos$'; then
+        warn "Docker container 'dolos' is running — it will compete for RabbitMQ queues!"
+        echo ""
+        read -p "Stop the Docker container? [Y/n] " -r
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            docker stop dolos
+            ok "Docker container stopped"
+        else
+            fail "Cannot run local debug alongside Docker container. Stop it first: docker stop dolos"
+        fi
+    fi
+
     # ── Load Dolos env vars from Mythic's .env ──
     # Without these, builds will fail ("Encoder not found", can't SSH, etc.)
     MYTHIC_ENV="/home/mrgnc/MythicC2/Mythic/.env"

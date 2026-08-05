@@ -23,6 +23,13 @@ warn()  { echo -e "  ${YELLOW}!${NC} $1"; }
 echo "=== Dolos Container Smoke Test ==="
 echo ""
 
+# ── Check for conflicting local debug process ──
+if ps aux 2>/dev/null | grep -v grep | grep -q 'python3.*Payload_Type/dolos/main.py'; then
+    warn "Local debug process is running — container and local debug cannot both use Dolos queues."
+    echo "  Stop local debug first: bash dev_tools/local/debug.sh --stop"
+    echo ""
+fi
+
 # ── 1. Container running ──
 
 echo "[1] Container status"
