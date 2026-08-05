@@ -1,5 +1,5 @@
 {
-  "rabbitmq_host": "127.0.0.1",
-  "rabbitmq_password": "8vKfgzWDIWOliwTgFhaUXpsIZa33iG",
-  "mythic_server_host": "127.0.0.1"
+  "rabbitmq_host": "mythic_rabbitmq",
+  "rabbitmq_password": "",
+  "mythic_server_host": "mythic_server"
 }

@@ -25,6 +25,10 @@ __pycache__/
 # Dev scripts — NOT needed in the container
 dev_tools/
 
+# Local-only config — contains RabbitMQ passwords, DO NOT ship
+rabbitmq_config.local.json
+rabbitmq_config.local.template.json
+
 # Local-only planning docs (gitignored anyway)
 CLAUDE.md
 PLAN.md

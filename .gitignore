@@ -49,4 +49,5 @@ rabbitmq_config.local.json
 ## Root-level dev files (moved to dev_tools/)
 /encoder_v2.py
 /shellcode_test.py
-.venvdev_examples/
+.venv/
+dev_examples/
