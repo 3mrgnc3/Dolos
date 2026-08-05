@@ -1,0 +1,34 @@
+# Dolos container .dockerignore
+# Build context: Payload_Type/dolos/ → InstalledServices/dolos/
+# The Dockerfile has no COPY — code is bind-mounted. This file keeps
+# the build context lean and documents what doesn't belong in the container.
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Venv
+.venv/
+
+# Dev scripts — NOT needed in the container
+dev_tools/
+
+# Local-only planning docs (gitignored anyway)
+CLAUDE.md
+PLAN.md
+DECISIONS.md
+
+# Workspace / misc
+*.code-workspace

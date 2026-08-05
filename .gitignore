@@ -5,6 +5,9 @@ CLAUDE.md
 DECISIONS.md
 PLAN.md
 
+## Dev docs (local Mythic reference cache)
+dev_docs/
+
 ## Read-only reference code (never tracked)
 reference_code/
 
@@ -37,9 +40,13 @@ Payload_Type/dolos/__pycache__/
 ## Secrets
 .env
 
+## Local debug config (gitignored — use template)
+rabbitmq_config.local.json
+
 ## Jupyter notebooks (testing only)
 *.ipynb
 
 ## Root-level dev files (moved to dev_tools/)
 /encoder_v2.py
 /shellcode_test.py
+.venv

@@ -1,18 +1,19 @@
 # Dolos
 
-A Mythic 3rd-Party Service agent that transfers payload files to an external server over SSH, runs an encoder command, and returns the result to Mythic's Uploaded Files.
+A Mythic **wrapper** payload type that takes an existing built payload (selected via the native "Create Wrapper" flow), transfers it to an external server over SSH/SFTP, runs an encoder command, and returns the encoded result to Mythic's Uploaded Files.
 
-**It does NOT do any encoding itself.** All processing happens on the external server you control.
+**It does NOT do any encoding itself.** All processing happens on the external server you control. The wrapped payload's C2 is already embedded — no C2 profile selection needed.
 
 ## Quick Start
 
-1. Set SSH credentials in your Mythic `.env`:
+1. Set SSH credentials in your Mythic `.env` (key auth preferred, password as fallback — at least one required):
 
 ```bash
 DOLOS_SSH_HOST=172.28.0.3
 DOLOS_SSH_PORT=22
 DOLOS_SSH_USERNAME=mrgnc
-DOLOS_SSH_PASSWORD=your_password
+DOLOS_SSH_PASSWORD=your_password          # password auth (fallback)
+DOLOS_SSH_PRIVATE_KEY=                     # optional: inline ed25519/RSA/ECDSA PEM for key auth
 DOLOS_REMOTE_COMMAND={"PyEncoder_v1.0":"py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}"}
 ```
 
@@ -29,28 +30,29 @@ bash /path/to/Dolos/dev_tools/full_uninstall.sh
 ./mythic-cli install folder ../Dolos
 ```
 
-4. Create a payload: Mythic UI → Create Payload → Dolos → select file, pick encoder → Build.
+4. Create a payload: Mythic UI → **Create Wrapper** → select an existing payload (e.g., Apollo) → select Dolos → pick encoder → Build. The wrapped payload's C2 is already embedded; no C2 profile step.
 
 ## How It Works
 
 ```
-Select file(s) in Mythic → SSH to external server → upload → run encoder → download result → store in Mythic
+Create Wrapper → select payload → SSH to external server → upload → run encoder → download result → store in Mythic
 ```
 
-- Files come from Mythic's Uploaded Files (dropdowns, no manual upload)
-- Encoder commands are configured in `.env` as JSON
+- Wrapped payload bytes arrive natively via Mythic's wrapper flow (`self.wrapped_payload`)
+- Encoder commands are configured in `.env` as JSON (static choices, no dynamic query)
 - Random temp workdir per build, cleaned up after
-- Result stored with metadata (file type, sizes, source file ID)
+- Result stored with magic-byte-aware filename + full SSH session log (JSON artifact)
+- No callback creation — the wrapped agent (e.g., Apollo) callbacks, not Dolos
 
 ## Documentation
 
-Full docs are served at `/docs/agents/dolos` in Mythic after install:
+Full docs are served at `/docs/wrappers/dolos` in Mythic after install (source in `documentation-wrapper/dolos/`):
 
-- **[Setup](documentation-payload/dolos/setup.md)** — SSH config, env vars, encoder deployment
-- **[Build Parameters](documentation-payload/dolos/build-parameters.md)** — param reference
-- **[Placeholder Reference](documentation-payload/dolos/placeholder-reference.md)** — `{workdir}`, `{input}`, `{output}`, `{file1}`
-- **[Encoder Setup](documentation-payload/dolos/encoder-setup.md)** — C# cradle encoder, adding custom encoders
-- **[Troubleshooting](documentation-payload/dolos/troubleshooting.md)** — common errors
+- **[Setup](documentation-wrapper/dolos/setup.md)** — SSH config, env vars, encoder deployment
+- **[Build Parameters](documentation-wrapper/dolos/build-parameters.md)** — param reference
+- **[Placeholder Reference](documentation-wrapper/dolos/placeholder-reference.md)** — `{workdir}`, `{input}`, `{output}`, `{file1}`
+- **[Encoder Setup](documentation-wrapper/dolos/encoder-setup.md)** — C# cradle encoder, adding custom encoders
+- **[Troubleshooting](documentation-wrapper/dolos/troubleshooting.md)** — common errors
 
 ## Development
 
@@ -63,4 +65,6 @@ No `sudo` needed. Always uninstall before reinstalling.
 ## Mythic Compatibility
 
 - Mythic >= 3.x
-- `supported_os = ExternalEncoder` (appears under Services)
+- Wrapper payload type (`wrapper=True`, `agent_type=AgentType.Wrapper`) — appears under **Create Wrapper**
+- `supported_os = [SupportedOS.Windows]` (wrapper outputs Windows EXEs)
+- `.NET Framework 4.x` required on target (standard on Win10/11)
