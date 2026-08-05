@@ -106,7 +106,10 @@ class Dolos(PayloadType):
     translation_container = None
     agent_type = AgentType.Wrapper
     agent_path = pathlib.Path(".") / "dolos"
-    agent_icon_path = agent_path / "dolos.svg"
+    # Load icon bytes relative to this module so it works regardless of CWD
+    # (Docker CWD is /Mythic/, local debug CWD is the project root)
+    _icon_path = pathlib.Path(__file__).parent.parent / "dolos.svg"
+    agent_icon_bytes = _icon_path.read_bytes() if _icon_path.exists() else b""
     agent_code_path = agent_path / "agent_code"
     c2_profiles = []
     build_parameters = [
