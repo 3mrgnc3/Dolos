@@ -1,4 +1,4 @@
-"""Dolos — Mythic Wrapper PayloadType (v0.9.2).
+"""Dolos — Mythic Wrapper PayloadType.
 
 Dolos is a **wrapper** payload type. It takes an existing built payload (selected
 via Mythic's native "Create Wrapper" flow), transfers it to an external server
@@ -40,8 +40,11 @@ from dolos.ssh_client import SSHSessionLog
 logger = logging.getLogger(__name__)
 logging.getLogger("dolos").setLevel(logging.DEBUG)
 
-Version = "0.9.2"
-
+# ---------------------------------------------------------------------------
+# Load version from agent_capabilities.json (single source of truth)
+# ---------------------------------------------------------------------------
+_CAPABILITIES_PATH = pathlib.Path(__file__).parent.parent / "agent_capabilities.json"
+_VERSION = json.loads(_CAPABILITIES_PATH.read_text())["agent_version"]
 
 # ---------------------------------------------------------------------------
 # Load encoder choices from env at import time (no dynamic query needed)
@@ -95,7 +98,7 @@ class Dolos(PayloadType):
     # out, so these relationships persist. Add new agents here + reinstall.
     wrapped_payloads = ["apollo", "merlin", "athena", "medusa", "hannibal", "freyja", "poopsie", "poseidon"]
     note = (
-        "Dolos v0.9.2 | The Craftsman of Lies — wrap an existing payload, "
+        f"Dolos v{_VERSION} | The Craftsman of Lies — wrap an existing payload, "
         "transfer it to an external server over SSH/SFTP, run an encoder "
         "(C# cradle, Donut, ShellcodePack, custom), and return the result. "
         "Built-in C# cradle encoder (csc.exe). Full session logging. "

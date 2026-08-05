@@ -18,6 +18,7 @@ import io
 import json
 import logging
 import os
+import pathlib
 import random
 import string
 import struct
@@ -29,6 +30,10 @@ from logging.handlers import RotatingFileHandler
 import paramiko
 
 logger = logging.getLogger(__name__)
+
+# ── Version (single source of truth: agent_capabilities.json) ──
+_CAPABILITIES_PATH = pathlib.Path(__file__).parent / "agent_capabilities.json"
+_VERSION = json.loads(_CAPABILITIES_PATH.read_text())["agent_version"]
 
 # ── Container log rotation ──
 # mythic_container's root logger suppresses DEBUG/INFO. We add a
@@ -283,7 +288,7 @@ class SSHSessionLog:
                 output_size: int, final_status: str) -> str:
         """Produce the full JSON session log artifact."""
         doc = {
-            "dolos_version": "0.9.0",
+            "dolos_version": _VERSION,
             "schema": "ssh_session_log_v1",
             "payload_uuid": payload_uuid,
             "wrapped_payload_uuid": wrapped_payload_uuid,
