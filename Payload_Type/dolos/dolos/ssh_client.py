@@ -88,15 +88,16 @@ def _setup_file_logging():
 
 _setup_file_logging()
 
-# Environment variable names (SSH config is env-only now, no build-param overrides)
+# Environment variable names
+# These are used by the legacy _get_env_config() function which is
+# kept as a fallback for local debug/testing. Builder.py uses config_loader
+# and get_ssh_config_from_profile() instead.
 ENV_HOST = "DOLOS_SSH_HOST"
 ENV_PORT = "DOLOS_SSH_PORT"
 ENV_USER = "DOLOS_SSH_USERNAME"
 ENV_PASS = "DOLOS_SSH_PASSWORD"
 ENV_PRIV_KEY = "DOLOS_SSH_PRIVATE_KEY"
 ENV_PUB_KEY = "DOLOS_SSH_PUBLIC_KEY"
-ENV_COMMAND = "DOLOS_REMOTE_COMMAND"
-ENV_TIMEOUT = "DOLOS_TIMEOUT"
 
 # Literal defaults
 DEFAULT_PORT = 22
@@ -356,8 +357,42 @@ class SSHSessionLog:
         return "\n".join(lines)
 
 
+def get_ssh_config_from_profile(profile) -> dict:
+    """Build SSH config dict from an EncoderProfile.
+
+    Returns dict with keys: host, port, username, password, private_key,
+    public_key, timeout, auth_method ("key", "password", or "key+password")
+    """
+    password = profile.password or ""
+    private_key = profile.key_content or ""
+    has_key = bool(private_key)
+    has_pass = bool(password)
+    if has_key and has_pass:
+        auth_method = "key+password"
+    elif has_key:
+        auth_method = "key"
+    elif has_pass:
+        auth_method = "password"
+    else:
+        auth_method = "none"
+
+    return {
+        "host": profile.host,
+        "port": profile.port,
+        "username": profile.username,
+        "password": password,
+        "private_key": private_key,
+        "public_key": "",  # not used for auth
+        "timeout": profile.timeout,
+        "auth_method": auth_method,
+    }
+
+
 def _get_env_config() -> dict:
     """Read SSH configuration from environment variables.
+
+    Legacy fallback — used for local debug / testing only.
+    All production builds use get_ssh_config_from_profile() instead.
 
     Returns dict with keys: host, port, username, password, private_key,
     public_key, timeout, auth_method ("key", "password", or "key+password")

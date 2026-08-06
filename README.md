@@ -1,43 +1,51 @@
+# <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos — The Craftsman of Lies
 
-# <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos - The Craftsman of Lies 
+**Mythic wrapper payload type — encode shellcode on your own infrastructure.**
 
-**Mythic wrapper payload type - encode shellcode on your own infrastructure**
-
-
-Dolos takes an existing built payload (Apollo, Merlin, etc.) and wraps it through an external SSH server that runs your encoder. The encoded result comes back to Mythic. **It does no encoding itself** - all processing happens on hardware you control.
-
-The wrapped payload's C2 is already embedded. No C2 profile selection needed - just pick your shellcode, pick your encoder, and build.
+Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself — the remote encoder does all the work.
 
 ---
 
 ## Features
 
-- **Multi-encoder support** - configure multiple encoder profiles in `.env` and select from a dropdown at build time. Run different encoders on different servers. Each profile can target a completely different build environment.
-- **Shellcode deduplication** - if the same shellcode is selected twice, Dolos detects it and automatically rebuilds the inner payload with the same config but a fresh UUID. Each callback gets unique provenance. Toggle via the "Regenerate Shellcode" build param.
-- **Full session logging** - every SSH/SFTP operation is captured in a timestamped JSON artifact. Download from the payload's build page.
-- **Format-agnostic** - the remote encoder determines output format. Dolos detects it via magic bytes and sets the correct file extension automatically.
-- **Rotating file logs** - container logs go to `/tmp/dolos/dolos.log` with size-based rotation. Nothing lost, no unbounded disk growth.
+- **File-based multi-profile config** — each encoder profile has its own SSH server, command, and optional bypass profiles
+- **Bypass profiles** — EDR evasion configs per encoder, shown/hidden automatically in the build UI
+- **Shellcode deduplication** — detects duplicate wraps and auto-rebuilds with a fresh UUID
+- **Per-profile SSH auth** — password, key, or both — configured per encoder, not globally
+- **Full session logging** — timestamped JSON artifact with every SSH/SFTP event
+- **Rotating file logs** — DEBUG-level detail at `/tmp/dolos/dolos.log`, CRITICAL-only in `docker logs`
+- **Format-agnostic** — magic-byte detection sets the correct file extension
 
 ---
 
 ## Quick Start
 
-### 1. Configure SSH and encoder in `.env`
+### 1. Configure encoder profiles
 
-```bash
-DOLOS_SSH_HOST=172.28.0.3
-DOLOS_SSH_PORT=22
-DOLOS_SSH_USERNAME=mrgnc
-DOLOS_SSH_PASSWORD=your_password          # password auth (fallback)
-# DOLOS_SSH_PRIVATE_KEY=                 # optional: inline PEM for key auth
-DOLOS_REMOTE_COMMAND={"PyEncoder_v1.0":"py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}","Donut_x64":"C:\\tools\\donut.exe -i {workdir}\\{input} -o {workdir}\\{output}"}
+Edit `Payload_Type/dolos/configs/encoders/` — each subdirectory has an `encoder_profile.json`:
+
+```json
+{
+    "index": 0,
+    "label": "PyEncoder_v1",
+    "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
+    "ssh_server": {
+        "host": "192.168.1.100",
+        "port": 22,
+        "username": "operator",
+        "password": "",
+        "keys": { "enabled": true, "path": "../../ssh_keys/tiny11/id_ed25519" }
+    },
+    "timeout": 300,
+    "bypass_profiles": ""
+}
 ```
 
-Each key in `DOLOS_REMOTE_COMMAND` appears as an encoder choice in the build form. Add as many profiles as you need - each one can target a different server or encoder binary.
+See [Encoder Setup](documentation-wrapper/dolos/encoder-setup.md) for full schema, key auth, and bypass profiles.
 
-### 2. Deploy the encoder
+### 2. Deploy the encoder on the remote server
 
-Copy `dev_tools/encoder/encoder.py` to `C:\tools\encoder.py` on your Windows server. Requires Python (`py.exe`) and `csc.exe` (built into Windows).
+Copy `dev_tools/encoder/encoder.py` to `C:\tools\encoder.py`. Requires Python (`py.exe`) and `csc.exe` (built into Windows).
 
 ### 3. Install
 
@@ -58,43 +66,35 @@ Mythic UI → **Create Wrapper** → select a payload → select Dolos → pick 
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| Encoder | ChooseOne | - | Encoder command to run (static choices from `DOLOS_REMOTE_COMMAND`) |
-| Timeout | Number | 300 | Remote command timeout in seconds |
+| Encoder | ChooseOne | — | Encoder profile from `configs/encoders/` |
+| Bypass Profile | ChooseOne | (None) | Shown only for encoders with bypass profiles |
+| Timeout | Number | 0 | Override profile timeout (0 = use profile default) |
 | Success String | String | `ENCODING_SUCCESS` | Stdout search string for success |
 | Fail String | String | `ENCODING_FAILED` | Stdout/stderr search string for failure |
-| **Regenerate Shellcode** | **Boolean** | **True** | **When the selected shellcode already has a Dolos build, automatically rebuild it with a fresh UUID. Turn OFF to wrap the same shellcode again without rebuilding.** |
+| Regenerate Shellcode | Boolean | True | Auto-rebuild if shellcode already wrapped |
 
 ---
 
-## Multi-Profile Architecture
-
-Dolos is designed for teams that run multiple encoders across different build environments. A single Dolos instance can connect to different SSH servers or run different encoder binaries depending on the profile selected at build time.
+## Config Directory
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   Mythic    │────▶│  SSH Server #1   │────▶│  PyEncoder v1.0  │  (C# cradle)
-│   (Dolos)   │     │  172.28.0.3      │     │  csc.exe + res   │
-│             │     └──────────────────┘     └──────────────────┘
-│             │
-│  Encoder     │     ┌──────────────────┐     ┌──────────────────┐
-│  dropdown    │────▶│  SSH Server #2   │────▶│  Donut x64       │  (shellcode)
-│              │     │  10.0.0.5        │     │  donut.exe        │
-└─────────────┘     └──────────────────┘     └──────────────────┘
+Payload_Type/dolos/configs/
+├── encoders/
+│   ├── pyencoder/            ← sample (placeholder credentials)
+│   ├── pyencoder_live/       ← real profile (password + key auth)
+│   ├── passthrough/          ← passthrough encoder
+│   ├── donut_x64/            ← Donut shellcode packer
+│   └── balliskit/            ← shared server, shared key
+│       ├── macropack/         ← MacroPack encoder
+│       ├── shellcodepack/     ← ShellcodePack encoder
+│       ├── bypass_profiles/   ← EDR evasion configs (JSON)
+│       └── id_ed25519         ← SSH private key (gitignored)
+└── ssh_keys/
+    ├── tiny11/               ← SSH keys for Windows server
+    └── ubuntuSVR01/          ← SSH keys for Linux server
 ```
 
-Coming soon: multiple hostnames and IP addresses per profile, so the same encoder name can resolve to different servers for redundancy or targeting.
-
----
-
-## Shellcode Deduplication
-
-When you select the same shellcode for a second Dolos build, Dolos detects that it's already been wrapped and **automatically rebuilds the inner payload** with the same configuration but a fresh UUID. This ensures each wrapped binary has unique provenance - separate callbacks, separate encryption keys, separate tracking.
-
-The "Regenerate Shellcode" toggle (default ON) controls this:
-- **ON** (default): Detects duplicate, rebuilds inner payload, wraps the fresh copy
-- **OFF**: Detects duplicate, proceeds with the same shellcode anyway - no rebuild, no failure
-
-Build info (encoder output, sizes, timing) is always visible in the payload's **Build Message** and **StdOut** fields, plus the downloadable session log JSON.
+Private keys and passwords are **gitignored**. The repo ships a sample `pyencoder` profile only. Operators customize on the server.
 
 ---
 
@@ -118,27 +118,28 @@ Dedup check ──already wrapped?──▶ Regenerate shellcode with new UUID
 
 ---
 
-## Documentation
+## Changelog
 
-Full docs at `/docs/wrappers/dolos` in Mythic after install:
+- **v0.11.0** — File-based multi-profile config (encoder profiles with per-profile SSH, bypass profiles, auto-scaffold, `lable` typo normalization). Removed all `DOLOS_SSH_*` and `DOLOS_REMOTE_COMMAND` env vars.
+- **v0.10.0** — Shellcode deduplication via Hasura + MythicRPC. Auto-rebuild with fresh UUID. Built-in C# cradle encoder (v2.3, CreateThread).
+- **v0.9.2** — Container log rotation (RotatingFileHandler). Version from `agent_capabilities.json`.
+- **v0.9.0** — SSH key authentication. `Regenerate Shellcode` build param.
+- **v0.5.1** — `resp.payload` lowercase fix (zero-byte payloads).
 
-- **Setup** - SSH config, env vars, encoder deployment
-- **Build Parameters** - all params with descriptions
-- **Placeholder Reference** - `{workdir}`, `{input}`, `{output}`, `{file1}`
-- **Encoder Setup** - C# cradle encoder, adding custom encoders
-- **Troubleshooting** - common errors and fixes
+---
 
 ## Development
 
 | File | Purpose |
 |------|---------|
 | `CLAUDE.md` | How to work in this repo |
-| `PLAN.md` | Active implementation plan |
+| `PLAN.md` | Implementation status |
 | `DECISIONS.md` | Design decisions log |
-| `dolos/hasura.py` | Hasura GraphQL client for dedup and TaskID lookup |
+| `dolos/config_loader.py` | Profile loading, validation, path resolution |
+| `dolos/hasura.py` | Hasura GraphQL client for dedup |
 | `dolos/ssh_client.py` | SSH/SFTP client + session logging |
-| `dolos/agent_functions/builder.py` | Main build pipeline and dedup logic |
+| `dolos/agent_functions/builder.py` | Build pipeline + dedup logic |
 
-**Local debug**: Run `bash dev_tools/local/debug.sh` or press F5 in VS Code. See `CLAUDE.md` for details.
+**Local debug**: `bash dev_tools/local/debug.sh` or press F5 in VS Code. See `CLAUDE.md`.
 
 No `sudo` needed. Always uninstall before reinstalling.

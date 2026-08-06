@@ -1,0 +1,17 @@
+{
+    "index": 1,
+    "label": "Passthrough",
+    "command": "py.exe C:\\tools\\passthrough_encoder.py {workdir}\\{input} {workdir}\\{output}",
+    "ssh_server": {
+        "host": "172.28.0.3",
+        "port": 22,
+        "username": "mrgnc",
+        "password": "it800m3rz!windows",
+        "keys": {
+            "enabled": false,
+            "path": ""
+        }
+    },
+    "timeout": 300,
+    "bypass_profiles": ""
+}

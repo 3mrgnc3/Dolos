@@ -20,7 +20,7 @@ running v0.5.1 or later.
 
 **Symptom:** Build completes but progress bubbles don't animate in the UI.
 
-**Possible causes:
+**Possible causes:**
 1. **Browser notifications snoozed** — Check your browser's notification settings
 2. **UI refresh delay** — Navigate away from the payload page and back to see updated step status
 
@@ -29,16 +29,24 @@ running v0.5.1 or later.
 **Symptom:** Build step shows ❌ for SSH connectivity.
 
 **Possible causes:**
-1. **Wrong credentials** — Check `DOLOS_SSH_PASSWORD` and/or `DOLOS_SSH_PRIVATE_KEY` in your Mythic `.env`
-2. **Wrong host/port** — Verify `DOLOS_SSH_HOST` and `DOLOS_SSH_PORT` match your external server
-3. **Key auth failure** — If using `DOLOS_SSH_PRIVATE_KEY`, ensure it's the full PEM content (not a file path). Dolos tries key auth first, then password.
-4. **Network unreachable** — From the container, can you reach the SSH server? Use `docker exec dolos python3 -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('172.28.0.3', 22)); print('OK')"`
+1. **Wrong credentials** — Check the `ssh_server` section in the encoder profile
+2. **Wrong host/port** — Verify `ssh_server.host` and `ssh_server.port` match your server
+3. **Key auth failure** — If `keys.enabled` is true, ensure `keys.path` points to a valid
+   private key file (relative to the profile JSON). The key content is loaded at startup.
+4. **Network unreachable** — From the container, can you reach the SSH server?
+   ```
+   docker exec dolos python3 -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('192.168.1.100', 22)); print('OK')"
+   ```
+
+**Fix:** Edit the encoder profile in `configs/encoders/` and reinstall the container.
 
 ### Container Logs
 
 The Dolos container writes two types of logs:
-1. **`docker logs dolos`** — Only CRITICAL severity (build start/end, hard errors). This is what mythic_container's root logger passes through.
-2. **File logs at `/tmp/dolos/dolos.log`** — DEBUG and above. All SSH/SFTP events, encoder output, connection details. Rotating (50MB max, 3 backups).
+1. **`docker logs dolos`** — Only CRITICAL severity (build start/end, hard errors). This is
+   what mythic_container's root logger passes through.
+2. **File logs at `/tmp/dolos/dolos.log`** — DEBUG and above. All SSH/SFTP events, encoder
+   output, connection details. Rotating (50MB max, 3 backups).
 
 To access file logs: `docker exec dolos cat /tmp/dolos/dolos.log`
 
@@ -46,38 +54,21 @@ To configure: set `DOLOS_LOG_DIR`, `DOLOS_LOG_MAX_MB`, `DOLOS_LOG_MAX_BACKUPS` i
 
 If file logs are not appearing, check that `/tmp/dolos/` is writable inside the container.
 
-**Causes and fixes:**
-
-1. **Wrong host/IP** — Check `DOLOS_SSH_HOST` in `.env`
-2. **Wrong port** — Check `DOLOS_SSH_PORT` in `.env` (default: 22)
-3. **Firewall blocking** — Ensure the external server allows SSH connections from Mythic's network
-4. **Server not running** — Verify the external server is accessible: `ssh user@host`
-
-**Fix:** Update `.env` and reinstall:
-```bash
-cd /path/to/Mythic
-./mythic-cli uninstall dolos
-bash /path/to/Dolos/dev_tools/full_uninstall.sh
-./mythic-cli install folder ../Dolos
-```
-
 ### Password Authentication Failed
 
 **Symptom:** SSH connects but auth fails (❌ for password auth).
 
 **Causes and fixes:**
-
-1. **Wrong password** — Check `DOLOS_SSH_PASSWORD` in `.env`
-2. **Wrong username** — Check `DOLOS_SSH_USERNAME` in `.env`
+1. **Wrong password** — Check `ssh_server.password` in the encoder profile
+2. **Wrong username** — Check `ssh_server.username` in the encoder profile
 3. **Password auth disabled on server** — Enable `PasswordAuthentication yes` in
-   `sshd_config` and restart SSH
+   `sshd_config` and restart SSH, or use key auth instead
 
 ### SFTP Write Test Failed
 
 **Symptom:** SSH connects and authenticates, but file upload fails.
 
 **Causes and fixes:**
-
 1. **Permission denied on remote directory** — The SSH user needs write access to
    the temp directory (`C:\Windows\Temp` on Windows, `/tmp` on Linux)
 2. **Disk full** — Check available space on the remote server
@@ -103,8 +94,8 @@ To add a new agent type, edit `wrapped_payloads` in `builder.py` and reinstall D
 
 **Symptom:** Build fails with exit code 127 or "command not found" in stderr.
 
-**Fix:** Ensure the encoder binary/script exists at the path specified in your
-`DOLOS_REMOTE_COMMAND` and is executable by the SSH user.
+**Fix:** Ensure the encoder binary/script exists at the path specified in the
+profile's `command` field and is executable by the SSH user.
 
 For the built-in C# cradle encoder:
 - Verify `py.exe` (Python launcher) is in PATH: `py --version`
@@ -123,13 +114,28 @@ For the built-in C# cradle encoder:
 4. Verify the encoder prints `ENCODING_SUCCESS` on success
 5. Check that file paths in the command are accessible
 
-### csc.exe Errors (Large Payloads)
+### No Encoder Profiles Configured
 
-**Symptom:** Encoder fails with CS0013 or CS1647 on large shellcode (>1MB).
+**Symptom:** Encoder dropdown shows "(no profiles configured)" and builds fail.
 
-**This should not happen with encoder v2.2+** — it uses `.resources` embedding
-instead of base64 string literals. If you see these errors, ensure you're running
-`dev_tools/encoder/encoder.py` (deployed as `C:\tools\encoder.py`), not an older version.
+**Fix:** The `configs/encoders/` directory has no `encoder_profile.json` files.
+Either:
+1. Edit the auto-scaffolded sample profile at `configs/encoders/pyencoder/encoder_profile.json`
+2. Create new profile directories under `configs/encoders/`
+
+Then reinstall the container.
+
+### Bypass Profile Dropdown Not Showing
+
+**Symptom:** The Bypass Profile field is hidden even when it should appear.
+
+**Fix:** This happens when the encoder profile doesn't have `bypass_profiles` set,
+or the path doesn't point to an existing directory with `.json` files. Check:
+1. The `bypass_profiles` field in the profile is set to a relative path (e.g., `"../bypass_profiles"`)
+2. The directory exists relative to the profile JSON
+3. The directory contains `.json` files (these become the dropdown options)
+
+After editing profiles, reinstall the container for changes to take effect.
 
 ### No C2 Profile Section
 
@@ -145,8 +151,8 @@ No C2 selection is needed.
 
 **Debug steps:**
 1. Check `docker logs dolos` for error messages
-2. Verify `.env` has all `DOLOS_*` variables
-3. Verify `HASURA_SECRET` and `HASURA_HOST` are set
+2. Verify the encoder profiles are valid JSON
+3. Verify `HASURA_SECRET` and `HASURA_HOST` are set in `.env`
 4. Try reinstalling: uninstall → full_uninstall → install
 
 ### .NET Framework Missing on Target
@@ -161,25 +167,30 @@ For pure native payloads (no .NET dependency), use a different encoder
 ### How to Update Dolos
 
 ```bash
-cd /path/to/Mythic
+cd /home/mrgnc/MythicC2/Mythic
 
 # 1. Uninstall current version
 ./mythic-cli uninstall dolos
 
-# 2. Clean DB entries
-bash /path/to/Dolos/dev_tools/full_uninstall.sh
+# 2. Clean DB entries and stop container
+bash /home/mrgnc/MythicC2/Dolos/dev_tools/remote/full_uninstall.sh
 
-# 3. Install new version
+# 3. Install new version (fresh build, no cached layers)
 ./mythic-cli install folder ../Dolos
-
-# 4. Verify
-docker logs dolos
 ```
 
-### How to Update Encoder Commands
+**Important:** Always do a full uninstall + reinstall. Do not just restart —
+Docker image layer caching can cause stale code to persist.
 
-1. Edit `DOLOS_REMOTE_COMMAND` in `/path/to/Mythic/.env`
-2. Reinstall the container (see above)
+### How to Update Encoder Profiles
+
+1. Edit `configs/encoders/*/encoder_profile.json` files on the host
+2. For Docker: the configs directory is bind-mounted, so changes take effect on
+   container restart. For the encoder dropdown to update, you must restart the container:
+   ```bash
+   docker restart dolos
+   ```
+3. For local debug: restart the debug process
 
 ## Getting Help
 

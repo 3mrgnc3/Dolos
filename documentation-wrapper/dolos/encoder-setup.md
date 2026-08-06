@@ -52,11 +52,8 @@ The C# approach uses Microsoft's own compiler, guaranteeing valid PE output:
 - **Zero additional installs** — `csc.exe` ships with Windows (.NET Framework 4)
 - **Guaranteed valid PE** — Microsoft's own compiler produces the output
 - **Large payload support** — Uses `.resources` embedding (not base64 string literals)
-  to avoid csc.exe's CS0013/CS1647 errors on payloads >1MB
 - **x64 output** — `/platform:x64` for 64-bit shellcode
-- **CreateThread execution** — v2.3 uses `CreateThread` instead of `GetDelegateForFunctionPointer`,
-  which avoids CLR-managed transitions that interfered with some shellcode (notably
-  Go-compiled agents like Merlin)
+- **CreateThread execution** — v2.3 uses `CreateThread` instead of `GetDelegateForFunctionPointer`
 
 ### Requirements on Remote Server
 
@@ -68,7 +65,7 @@ The C# approach uses Microsoft's own compiler, guaranteeing valid PE output:
 
 ```powershell
 # Copy the encoder to the remote server
-scp dev_tools/encoder/encoder.py mrgnc@172.28.0.3:C:/tools/encoder.py
+scp dev_tools/encoder/encoder.py operator@192.168.1.100:C:/tools/encoder.py
 
 # Verify Python is available
 py --version
@@ -77,43 +74,156 @@ py --version
 C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /?
 ```
 
-### Default .env Configuration
+### Minimal Encoder Profile
 
-```bash
-DOLOS_REMOTE_COMMAND={"PyEncoder_v1.0":"py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}"}
+The auto-scaffolded default profile is a good starting point:
+
+```json
+{
+    "index": 0,
+    "label": "PyEncoder_v1",
+    "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
+    "ssh_server": {
+        "host": "192.168.1.100",
+        "port": 22,
+        "username": "operator",
+        "password": "",
+        "keys": {"enabled": false, "path": ""}
+    },
+    "timeout": 300,
+    "bypass_profiles": ""
+}
 ```
 
-## Adding Custom Encoder Commands
+Edit the `ssh_server` section with your server's credentials and reinstall.
 
-Encoder commands are stored in `DOLOS_REMOTE_COMMAND` as a JSON object.
-Each key-value pair defines one encoder:
+## Adding Custom Encoders
 
-- **Key** = display label shown in the Encoder dropdown
-- **Value** = full command string with placeholders
+Each encoder gets its own directory under `configs/encoders/`. The `label` field
+is what appears in the Mythic UI dropdown.
 
-### Example Configurations
+### Simple Encoder (Single Command)
 
-```bash
-DOLOS_REMOTE_COMMAND={"PyEncoder_v1.0":"py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}","Donut_x64":"C:\\tools\\donut.exe -f 1 -i {workdir}\\{input} -o {workdir}\\{output}","Passthrough":"py.exe C:\\tools\\passthrough_encoder.py {workdir}\\{input} {workdir}\\{output}"}
+```json
+{
+    "index": 1,
+    "label": "Donut_x64",
+    "command": "C:\\tools\\donut.exe -f 1 -i {workdir}\\{input} -o {workdir}\\{output}",
+    "ssh_server": {
+        "host": "192.168.1.100",
+        "port": 22,
+        "username": "operator",
+        "password": "your_password",
+        "keys": {"enabled": false, "path": ""}
+    },
+    "timeout": 300,
+    "bypass_profiles": ""
+}
 ```
 
-- **PyEncoder_v1.0** — Built-in C# cradle encoder (recommended)
-- **Donut_x64** — Donut shellcode packer (EXE/DLL → shellcode)
-- **Passthrough** — Copies input to output unchanged (for pipeline testing)
+### Encoder with Key Auth
 
-### Adding a New Encoder
+```json
+{
+    "index": 2,
+    "label": "PyEncoder_v1",
+    "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
+    "ssh_server": {
+        "host": "192.168.1.100",
+        "port": 22,
+        "username": "operator",
+        "password": "",
+        "keys": {
+            "enabled": true,
+            "path": "../../ssh_keys/tiny11/id_ed25519"
+        }
+    },
+    "timeout": 300,
+    "bypass_profiles": ""
+}
+```
 
-1. Install the encoder on the remote server (e.g., `C:\tools\new_encoder.exe`)
-2. Edit `/path/to/Mythic/.env`
-3. Add a new key-value pair to the `DOLOS_REMOTE_COMMAND` JSON
-4. Reinstall the Dolos container
-5. The new encoder will appear in the Encoder dropdown
+### Encoder with Bypass Profiles
 
-### JSON Escaping in .env
+For encoders that support EDR evasion profiles (e.g., ShellcodePack):
 
-- Use double backslashes for Windows paths: `C:\\tools\\encoder.exe`
-- Keep the entire JSON on one line
-- No spaces around the `=` sign
+```json
+{
+    "index": 3,
+    "label": "ShellcodePack_v2.6",
+    "command": "C:\\tools\\shellcodepack.exe -i {workdir}\\{input} -G {workdir}\\{output} --profile C:\\tools\\profiles\\{bypass_profile}.json",
+    "ssh_server": {
+        "host": "192.168.1.100",
+        "port": 22,
+        "username": "operator",
+        "password": "",
+        "keys": {"enabled": true, "path": "../id_ed25519"}
+    },
+    "timeout": 600,
+    "bypass_profiles": "../bypass_profiles"
+}
+```
+
+The `bypass_profiles` path is relative to the `encoder_profile.json` file.
+Place bypass profile JSON files in the referenced directory:
+
+```
+configs/encoders/balliskit/
+├── macropack/
+│   └── encoder_profile.json          ← points to "../bypass_profiles"
+├── shellcodepack/
+│   └── encoder_profile.json          ← points to "../bypass_profiles"
+├── bypass_profiles/
+│   ├── cortex_bypass_profile.json
+│   ├── cs_bypass_profile.json
+│   ├── kaspersky_bypass_profile.json
+│   └── s1_bypass_profile.json
+└── id_ed25519                         ← shared SSH key
+```
+
+When an encoder has bypass profiles, the **Bypass Profile** dropdown appears
+in the build dialog with entries like **"Balliskit / Cortex Bypass"**.
+
+### Per-Encoder Timeout
+
+Each encoder profile has its own `timeout` field (in seconds). This is useful
+for slow servers or complex encoders that take longer to complete:
+
+```json
+{
+    "label": "ShellcodePack_v2.6",
+    "timeout": 600,
+    ...
+}
+```
+
+The `Timeout` build parameter (default: 0) overrides the profile's timeout
+when set to a non-zero value.
+
+## Directory Layout for Multiple Encoders on the Same Server
+
+If multiple encoders share the same SSH server, you can organize them under
+a common directory with a shared SSH key:
+
+```
+configs/encoders/balliskit/
+├── macropack/
+│   └── encoder_profile.json     ← host: 192.168.1.100, keys.path: ../../ssh_keys/tiny11/id_ed25519
+├── shellcodepack/
+│   └── encoder_profile.json     ← host: 192.168.1.100, keys.path: ../../ssh_keys/tiny11/id_ed25519
+└── bypass_profiles/
+    └── *.json
+```
+
+Or place the key alongside the profiles:
+
+```
+configs/encoders/balliskit/
+├── macropack/
+│   └── encoder_profile.json     ← keys.path: ../id_ed25519
+├── id_ed25519                   ← private key
+└── id_ed25519.pub               ← public key (optional, not used for auth)
+```
 
 ### Success/Failure Detection
 
@@ -122,7 +232,7 @@ Dolos checks for success and failure strings in the encoder's stdout:
 - **Success String** (default: `ENCODING_SUCCESS`) — If found in stdout, encoding is confirmed
 - **Fail String** (default: `ENCODING_FAILED`) — If found in stdout/stderr, encoding is confirmed failed
 
-Your encoder should print one of these to stdout so Dolos can detect the result:
+Your encoder should print one of these to stdout:
 
 ```python
 # Success:
@@ -131,54 +241,3 @@ print("ENCODING_SUCCESS")
 # Failure:
 print("ENCODING_FAILED: Invalid input format")
 ```
-
-## Example: BallisKit ShellcodePack
-
-> **Note:** ShellcodePack is a **third-party commercial product** by BallisKit SAS.
-> It is not included with Dolos and requires a separate license (€875/year).
-> This section demonstrates how to integrate a proprietary encoder.
-
-[ShellcodePack](https://balliskit.com/products/shellcodepack) is a professional
-shellcode weaponization tool that converts shellcode into deployment-ready payloads
-with EDR evasion, indirect syscalls, AMSI bypass, and multiple output formats
-(.exe, .dll, .bin, .c, .py, .asm, .cpl, .xll, .scr).
-
-### Key Features
-
-| Category | Capabilities |
-|----------|--------------|
-| Input | .bin, .exe (including Go and Rust), .dll, .NET assemblies, .asm, .c |
-| Output | .exe (native or .NET), .dll, .bin, .c, .py, .asm, .cpl, .xll, .scr |
-| Evasion | Indirect syscalls, callstack spoofing, ETW patching, AMSI bypass, DLL unhooking |
-| Delivery | DLL proxying/sideloading, Windows Service generation, TCP/HTTPS stagers |
-| Guardrails | Domain, username, date, file-based execution conditions |
-
-### Integration with Dolos
-
-1. **Install ShellcodePack CLI** on the remote server (e.g., `C:\tools\shellcodepack.exe`)
-2. **Add to `DOLOS_REMOTE_COMMAND`** in `.env`:
-
-```bash
-DOLOS_REMOTE_COMMAND={"PyEncoder_v1.0":"py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}","ShellcodePack_EXE":"C:\\tools\\shellcodepack.exe -i {workdir}\\{input} -o {workdir}\\{output} -f exe --profile defender","ShellcodePack_DLL":"C:\\tools\\shellcodepack.exe -i {workdir}\\{input} -o {workdir}\\{output} -f dll --profile defender"}
-```
-
-3. **Reinstall** the Dolos container. Two new options appear in the Encoder dropdown:
-   - **ShellcodePack_EXE** — Produce a standalone EXE with Defender evasion
-   - **ShellcodePack_DLL** — Produce a reflective DLL with Defender evasion
-
-4. **Success string**: ShellcodePack prints `ENCODING_SUCCESS` by default when it
-   completes. If your version uses a different output format, adjust the
-   **Success String** build parameter accordingly.
-
-### Why This Works
-
-Dolos doesn't know or care what the encoder actually is. It just:
-1. Uploads the wrapped payload to the remote workdir
-2. Runs whatever command you configured
-3. Downloads the result file (`wd_out.bin`)
-4. Checks stdout for success/failure strings
-5. Returns the result to Mythic
-
-Any command-line tool that takes an input file and produces an output file can be
-integrated this way. See [Placeholder Reference](placeholder-reference) for the
-full placeholder syntax.

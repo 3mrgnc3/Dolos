@@ -8,6 +8,7 @@
 #   1. Copy rabbitmq_config.local.template.json → rabbitmq_config.local.json
 #      and fill in the RabbitMQ password from Mythic's .env (RABBITMQ_PASSWORD)
 #   2. The .venv must exist at /home/mrgnc/MythicC2/Dolos/.venv
+#   3. Edit configs in Payload_Type/dolos/configs/ with your SSH credentials
 #
 # Usage:
 #   bash dev_tools/local/debug.sh              # Run in foreground
@@ -21,6 +22,7 @@ VENV="$D/.venv"
 RABBITMQ_LOCAL="$D/Payload_Type/dolos/rabbitmq_config.local.json"
 RABBITMQ_TEMPLATE="$D/Payload_Type/dolos/rabbitmq_config.local.template.json"
 LOG_DIR="/tmp/dolos"
+CONFIGS_DIR="$D/Payload_Type/dolos/configs"
 
 # ── Colors ──
 RED='\033[0;31m'
@@ -69,13 +71,27 @@ check_prereqs() {
     fi
     ok "paramiko available"
 
-    # Check if icon path resolves (common local-debug issue)
+    # Check if icon path resolves
     cd "$D/Payload_Type/dolos" || fail "Can't cd to Payload_Type/dolos"
     if [ ! -f "dolos/dolos.svg" ]; then
         warn "dolos/dolos.svg not found relative to Payload_Type/dolos/"
         warn "  The icon will fail to load in local debug. This is cosmetic only."
     else
         ok "Icon file exists at expected path"
+    fi
+
+    # Check config directory
+    if [ ! -d "$CONFIGS_DIR" ]; then
+        warn "configs/ directory not found at $CONFIGS_DIR"
+        warn "  Dolos will auto-scaffold a sample config on first run."
+    else
+        profile_count=$(find "$CONFIGS_DIR/encoders" -name "encoder_profile.json" 2>/dev/null | wc -l)
+        if [ "$profile_count" -eq 0 ]; then
+            warn "No encoder_profile.json files found in configs/"
+            warn "  Dolos will auto-scaffold a sample config on first run."
+        else
+            ok "Found $profile_count encoder profile(s) in configs/"
+        fi
     fi
 
     cd "$D" || true
@@ -101,29 +117,12 @@ run_debug() {
         fi
     fi
 
-    # ── Load Dolos env vars from Mythic's .env ──
-    # Without these, builds will fail ("Encoder not found", can't SSH, etc.)
-    MYTHIC_ENV="/home/mrgnc/MythicC2/Mythic/.env"
-    if [ -f "$MYTHIC_ENV" ]; then
-        info "Loading env vars from $MYTHIC_ENV"
-        # Source only the DOLOS_ vars to avoid shell escaping issues with JSON
-        export DOLOS_REMOTE_COMMAND="$(grep '^DOLOS_REMOTE_COMMAND=' "$MYTHIC_ENV" | head -1 | sed "s/^DOLOS_REMOTE_COMMAND=//" | tr -d '"')"
-        export DOLOS_SSH_HOST="$(grep '^DOLOS_SSH_HOST=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_HOST=//' | tr -d '"')"
-        export DOLOS_SSH_PASSWORD="$(grep '^DOLOS_SSH_PASSWORD=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_PASSWORD=//' | tr -d '"')"
-        export DOLOS_SSH_USERNAME="$(grep '^DOLOS_SSH_USERNAME=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_USERNAME=//' | tr -d '"')"
-        export DOLOS_SSH_PORT="$(grep '^DOLOS_SSH_PORT=' "$MYTHIC_ENV" | head -1 | sed 's/^DOLOS_SSH_PORT=//' | tr -d '"')"
-        ok "DOLOS_SSH_HOST=$DOLOS_SSH_HOST"
-        ok "DOLOS_REMOTE_COMMAND has $(echo $DOLOS_REMOTE_COMMAND | python3 -c 'import sys,json; print(len(json.loads(sys.stdin.read())))' 2>/dev/null || echo '?') encoders"
-    else
-        warn "Mythic .env not found at $MYTHIC_ENV"
-        warn "Builds will fail without SSH/encoder config"
-    fi
-
     info "Starting Dolos in local debug mode..."
-    info "  RABBITMQ_CONFIG=local  (127.0.0.1 RabbitMQ)"
-    info "  DOLOS_DEV_MODE=1       (SSL bypass)"
-    info "  DOLOS_LOG_DIR=$LOG_DIR  (file logs)"
-    info ""
+    info "  RABBITMQ_CONFIG=local        (127.0.0.1 RabbitMQ)"
+    info "  DOLOS_DEV_MODE=1             (SSL bypass)"
+    info "  DOLOS_LOG_DIR=$LOG_DIR       (file logs)"
+    info "  DOLOS_CONFIG=$CONFIGS_DIR    (encoder profiles)"
+    echo ""
     info "Press Ctrl+C to stop."
     echo ""
 
@@ -132,11 +131,7 @@ run_debug() {
     RABBITMQ_CONFIG=local \
     DOLOS_DEV_MODE=1 \
     DOLOS_LOG_DIR="$LOG_DIR" \
-    DOLOS_REMOTE_COMMAND="$DOLOS_REMOTE_COMMAND" \
-    DOLOS_SSH_HOST="$DOLOS_SSH_HOST" \
-    DOLOS_SSH_PASSWORD="$DOLOS_SSH_PASSWORD" \
-    DOLOS_SSH_USERNAME="$DOLOS_SSH_USERNAME" \
-    DOLOS_SSH_PORT="${DOLOS_SSH_PORT:-22}" \
+    DOLOS_CONFIG="$CONFIGS_DIR" \
     "$VENV/bin/python" main.py
 }
 

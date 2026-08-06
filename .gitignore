@@ -51,3 +51,19 @@ rabbitmq_config.local.json
 /shellcode_test.py
 .venv/
 dev_examples/
+
+## Config secrets — never track private keys or operator-modified profiles
+## The boilerplate configs in Payload_Type/dolos/configs/ ARE tracked (sample only).
+## Operators put real keys/profiles on the server — those are never committed.
+Payload_Type/dolos/configs/encoders/*/id_*
+Payload_Type/dolos/configs/encoders/*/ssh_key
+Payload_Type/dolos/configs/encoders/*/*/id_*
+Payload_Type/dolos/configs/encoders/*/*/ssh_key
+Payload_Type/dolos/configs/ssh_keys/*/id_*
+Payload_Type/dolos/configs/ssh_keys/*/ssh_key
+!Payload_Type/dolos/configs/ssh_keys/*/*.pub
+!Payload_Type/dolos/configs/encoders/*/*.pub
+!Payload_Type/dolos/configs/encoders/*/*/*.pub
+Payload_Type/dolos/configs/encoders/*/bypass_profiles/*.json
+Payload_Type/dolos/configs/encoders/*/*/bypass_profiles/*.json
+Payload_Type/dolos/rabbitmq_config.local.json

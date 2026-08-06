@@ -8,16 +8,16 @@ The input payload bytes arrive as ``self.wrapped_payload`` — provided natively
 by Mythic. No file-dropdown, no GraphQL file lookup, no monkey-patch needed.
 
 Build parameters:
-  - Encoder (ChooseOne, static choices from DOLOS_REMOTE_COMMAND env var)
-  - Timeout (Number, default 300)
+  - Encoder (ChooseOne from encoder profiles in configs/)
+  - Bypass Profile (ChooseOne, shown only when encoder has bypass profiles)
+  - Timeout (Number, default from encoder profile)
   - Success String (String, default "ENCODING_SUCCESS")
   - Fail String (String, default "ENCODING_FAILED")
+  - Regenerate Shellcode (Boolean, default True)
 
-SSH config is environment-variables only (DOLOS_SSH_*).
-
-All SSH/SFTP events are captured in an SSHSessionLog and stored as a JSON
-artifact (<payload_name>.session.json) alongside the build result. This
-provides forensically complete, timestamped logging of every operation.
+SSH config, encoder commands, and bypass profiles are loaded from
+encoder_profile.json files in the configs/ directory (mounted at
+/Mythic/configs/ inside Docker).
 """
 
 import asyncio
@@ -36,6 +36,8 @@ from mythic_container.PayloadBuilder import *
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 
+from dolos import config_loader
+from dolos.config_loader import EncoderProfile
 from dolos import ssh_client
 from dolos.ssh_client import SSHSessionLog
 
@@ -49,32 +51,11 @@ _CAPABILITIES_PATH = pathlib.Path(__file__).parent.parent / "agent_capabilities.
 _VERSION = json.loads(_CAPABILITIES_PATH.read_text())["agent_version"]
 
 # ---------------------------------------------------------------------------
-# Load encoder choices from env at import time (no dynamic query needed)
+# Load encoder choices from config profiles at import time
 # ---------------------------------------------------------------------------
-
-def _load_encoder_choices() -> list[str]:
-    """Read encoder labels from DOLOS_REMOTE_COMMAND env var."""
-    raw = os.environ.get("DOLOS_REMOTE_COMMAND", "")
-    if not raw:
-        return ["PyEncoder_v1.0"]
-    try:
-        return list(json.loads(raw).keys())
-    except Exception:
-        return ["PyEncoder_v1.0"]
-
-
-def _lookup_encoder_command(label: str) -> str:
-    """Look up the full command string for an encoder label."""
-    raw = os.environ.get("DOLOS_REMOTE_COMMAND", "")
-    if not raw:
-        return ""
-    try:
-        return json.loads(raw).get(label, "")
-    except Exception:
-        return ""
-
-
-_ENCODER_CHOICES = _load_encoder_choices()
+_ENCODER_CHOICES = config_loader.get_encoder_choices()
+_BYPASS_CHOICES = config_loader.get_all_bypass_choices()
+_ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
 
 
 # ---------------------------------------------------------------------------
@@ -95,24 +76,19 @@ class Dolos(PayloadType):
     author = "@3mrgnc3"
     supported_os = ["SSH Server + Any OS"]
     wrapper = True
-    # Payload types Dolos can wrap. Listed on the wrapper side because we can't
-    # modify each agent's code to list Dolos. Mythic's sync deletion is commented
-    # out, so these relationships persist. Add new agents here + reinstall.
     wrapped_payloads = ["apollo", "merlin", "athena", "medusa", "hannibal", "freyja", "poopsie", "poseidon"]
     note = (
         f"Dolos v{_VERSION} | The Craftsman of Lies — wrap an existing payload, "
         "transfer it to an external server over SSH/SFTP, run an encoder "
         "(C# cradle, Donut, ShellcodePack, custom), and return the result. "
         "Built-in C# cradle encoder (csc.exe). Full session logging. "
-        "Rotating file logs. See docs for setup."
+        "Rotating file logs. Per-profile SSH config. See docs for setup."
     )
     supports_dynamic_loading = False
     mythic_encrypts = True
     translation_container = None
     agent_type = AgentType.Wrapper
     agent_path = pathlib.Path(".") / "dolos"
-    # Load icon bytes relative to this module so it works regardless of CWD
-    # (Docker CWD is /Mythic/, local debug CWD is the project root)
     _icon_path = pathlib.Path(__file__).parent.parent / "dolos.svg"
     agent_icon_bytes = _icon_path.read_bytes() if _icon_path.exists() else b""
     agent_code_path = agent_path / "agent_code"
@@ -122,18 +98,40 @@ class Dolos(PayloadType):
             name="Encoder",
             parameter_type=BuildParameterType.ChooseOne,
             description=(
-                "Select an encoder command. Configured in .env via "
-                "DOLOS_REMOTE_COMMAND. Each option runs a specific "
-                "command on the external server."
+                "Select an encoder profile. Configured in configs/encoders/ "
+                "directory. Each profile specifies SSH server, command template, "
+                "and optional bypass profiles."
             ),
             choices=_ENCODER_CHOICES,
             group_name="Remote Command",
         ),
         BuildParameter(
+            name="Bypass Profile",
+            parameter_type=BuildParameterType.ChooseOne,
+            description=(
+                "Select a bypass profile for the chosen encoder. "
+                "Only shown when the encoder has bypass profiles configured. "
+                "Choose (None) to skip bypass."
+            ),
+            choices=_BYPASS_CHOICES,
+            default_value="(None)",
+            hide_conditions=[
+                HideCondition(
+                    name="Encoder",
+                    operand=HideConditionOperand.NotIN,
+                    choices=_ENCODERS_WITH_BYPASS,
+                )
+            ] if _ENCODERS_WITH_BYPASS else [],
+            group_name="Remote Command",
+        ),
+        BuildParameter(
             name="Timeout",
             parameter_type=BuildParameterType.Number,
-            description="Timeout in seconds for the remote command.",
-            default_value=300,
+            description=(
+                "Timeout in seconds for the remote command. "
+                "Overrides the encoder profile's default timeout if set."
+            ),
+            default_value=0,
             required=False,
             group_name="Remote Command",
         ),
@@ -201,7 +199,8 @@ class Dolos(PayloadType):
         # ── 1. Collect build parameters ──
 
         encoder_label = (self.get_parameter("Encoder") or "").strip()
-        timeout = int(self.get_parameter("Timeout") or 300)
+        bypass_display = (self.get_parameter("Bypass Profile") or "(None)").strip()
+        timeout_override = int(self.get_parameter("Timeout") or 0)
         success_string = (self.get_parameter("Success String") or "").strip()
         failure_string = (self.get_parameter("Fail String") or "").strip()
         regenerate = self.get_parameter("Regenerate Shellcode") or False
@@ -213,20 +212,43 @@ class Dolos(PayloadType):
             resp.build_message = "No wrapped payload. Select an existing payload in the Create Wrapper dialog."
             return resp
 
-        if not encoder_label:
-            await self._step("Connecting", "No encoder selected", False)
-            resp.build_message = "Encoder is required — select an encoder command from the dropdown"
+        if not encoder_label or encoder_label == "(no profiles configured)":
+            await self._step("Connecting", "No encoder profile configured", False)
+            resp.build_message = (
+                "No encoder profiles configured. Edit configs/encoders/encoder_profile.json "
+                "with your SSH server details and encoder command. See /docs/agents/dolos/setup for help."
+            )
             return resp
 
+        # ── Load encoder profile from config ──
+
+        profile = config_loader.get_encoder_profile(encoder_label)
+        if profile is None:
+            await self._step("Connecting", f"Encoder profile '{encoder_label}' not found", False)
+            resp.build_message = f"Encoder profile '{encoder_label}' not found. Check configs/encoders/ directory."
+            return resp
+
+        if not profile.valid:
+            errors = "; ".join(profile.validation_errors)
+            await self._step("Connecting", f"Encoder profile '{encoder_label}' is invalid: {errors}", False)
+            resp.build_message = f"Encoder profile '{encoder_label}' is invalid: {errors}"
+            return resp
+
+        # Determine timeout: use profile default unless overridden by build param
+        timeout = timeout_override if timeout_override > 0 else profile.timeout
+
+        # Determine bypass profile stem for command placeholder
+        bypass_stem = ""
+        if bypass_display and bypass_display != "(None)":
+            bypass_stem = config_loader.get_bypass_stem_for_display(encoder_label, bypass_display) or ""
+
+        await self._step("Connecting", f"Encoder: {encoder_label} | Input: {len(self.wrapped_payload):,} bytes | Timeout: {timeout}s", True)
+
         # ── Check: has this payload already been wrapped by Dolos? ──
-        # Each inner payload UUID can only be wrapped once. If it already has a
-        # successful Dolos build, we either fail (default) or auto-regenerate
-        # the inner payload with a new UUID (if Regenerate Shellcode is enabled).
 
         already_wrapped = await self._check_already_wrapped()
         if already_wrapped:
             if regenerate:
-                # Regenerate ON: auto-rebuild inner payload with new UUID
                 logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
                             f"a successful Dolos build. Regenerate Shellcode enabled — "
                             f"rebuilding inner payload with new UUID.")
@@ -235,11 +257,8 @@ class Dolos(PayloadType):
                     await self._step("Rebuilding",
                         "Failed to regenerate shellcode — proceeding with original.",
                         False)
-                    # Don't fail the build — just proceed with the original shellcode
                 # else: self.wrapped_payload and self.wrapped_payload_uuid are now updated
             else:
-                # Regenerate OFF: reuse the same shellcode, just proceed.
-                # The operator explicitly chose to wrap the same shellcode again.
                 logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
                             f"a successful Dolos build, but Regenerate Shellcode is OFF — "
                             f"proceeding with the same shellcode.")
@@ -251,19 +270,13 @@ class Dolos(PayloadType):
         payload_size = len(payload_bytes)
         logger.info(f"[DOLOS-BUILD] Input payload: {payload_size:,} bytes")
 
-        # ── Resolve encoder command from label ──
+        # ── Resolve encoder command ──
 
-        encoder_command = _lookup_encoder_command(encoder_label)
-        if not encoder_command:
-            await self._step("Connecting", f"Encoder '{encoder_label}' not found in configuration", False)
-            resp.build_message = f"Encoder '{encoder_label}' not found in DOLOS_REMOTE_COMMAND"
-            return resp
+        encoder_command = profile.command
 
-        await self._step("Connecting", f"Encoder: {encoder_label} | Input: {payload_size:,} bytes", True)
+        # ── Get SSH config from profile ──
 
-        # ── Get SSH config from environment ──
-
-        ssh_config = ssh_client._get_env_config()
+        ssh_config = ssh_client.get_ssh_config_from_profile(profile)
         host = ssh_config["host"]
         port = ssh_config["port"]
         username = ssh_config["username"]
@@ -272,13 +285,19 @@ class Dolos(PayloadType):
         auth_method = ssh_config["auth_method"]
 
         if not host:
-            await self._step("Connecting", "DOLOS_SSH_HOST not configured", False)
-            resp.build_message = "SSH host not configured. Set DOLOS_SSH_HOST in .env and reinstall. See /docs/agents/dolos/setup for help."
+            await self._step("Connecting", "SSH host not configured in encoder profile", False)
+            resp.build_message = (
+                "SSH host not configured. Edit the encoder profile's ssh_server.host "
+                "in configs/encoders/. See /docs/agents/dolos/setup for help."
+            )
             return resp
 
         if auth_method == "none":
-            await self._step("Connecting", "No SSH auth configured", False)
-            resp.build_message = "No SSH auth method configured. Set DOLOS_SSH_PRIVATE_KEY (key auth) or DOLOS_SSH_PASSWORD (password auth) in .env. See /docs/agents/dolos/setup for help."
+            await self._step("Connecting", "No SSH auth configured in encoder profile", False)
+            resp.build_message = (
+                "No SSH auth method configured. Set ssh_server.password or enable "
+                "ssh_server.keys in the encoder profile. See /docs/agents/dolos/setup for help."
+            )
             return resp
 
         logger.info(f"[DOLOS-BUILD] SSH config: {username}@{host}:{port} auth={auth_method}")
@@ -293,7 +312,6 @@ class Dolos(PayloadType):
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            # Key auth preferred, password fallback
             connect_kwargs = dict(
                 hostname=host, port=port, username=username,
                 timeout=20, allow_agent=False, look_for_keys=False,
@@ -311,7 +329,10 @@ class Dolos(PayloadType):
         except Exception as e:
             session_log.connection_failed(str(e))
             await self._step("Connecting", f"SSH connection failed: {e}", False)
-            resp.build_message = f"SSH connection failed: {e}. Check DOLOS_SSH_HOST/PORT/USERNAME and auth config (DOLOS_SSH_PRIVATE_KEY or DOLOS_SSH_PASSWORD) in .env."
+            resp.build_message = (
+                f"SSH connection failed: {e}. Check the encoder profile's "
+                "ssh_server config in configs/encoders/."
+            )
             return resp
 
         sftp = None
@@ -368,11 +389,26 @@ class Dolos(PayloadType):
                 client.close()
                 return resp
 
-        # ── 3. Upload wrapped payload (Step 3: Uploading) ──
+        # ── 3. Upload wrapped payload + bypass profiles (Step 3: Uploading) ──
 
         remote_filenames = {"input": "wd_in.bin"}
         files: list[tuple[str, bytes]] = [("wd_in.bin", payload_bytes)]
         total_size = payload_size
+
+        # Upload bypass profile files if command has {bypass_profile} placeholder
+        if bypass_stem and profile.bypass_profiles_path:
+            # Find the matching .json file in bypass_profiles_path
+            bp_filename = f"{bypass_stem}.json"
+            bp_local_path = os.path.join(profile.bypass_profiles_path, bp_filename)
+            # Also need the remote path the encoder will reference.
+            # The encoder command uses {bypass_profile} as a filename stem.
+            # We upload bypass files to the workdir so the encoder can find them.
+            # But the command often references C:\tools\...\{bypass_profile}.json
+            # which is on the remote server's local filesystem, not in the workdir.
+            # So we DON'T upload bypass files to workdir — the encoder references
+            # them by their absolute path on the remote server.
+            # The {bypass_profile} placeholder just resolves to the stem filename.
+            pass
 
         upload_start = time.time()
         session_log.uploading_file("wd_in.bin", f"{workdir}/{workdir_cmd}/wd_in.bin", total_size)
@@ -407,7 +443,11 @@ class Dolos(PayloadType):
 
         # ── 4. Run encoder command (Step 4: Processing) ──
 
-        resolved_cmd = ssh_client.resolve_placeholders(encoder_command, workdir_cmd, remote_filenames)
+        # Resolve placeholders in the command template
+        resolved_cmd = ssh_client.resolve_placeholders(
+            encoder_command, workdir_cmd, remote_filenames,
+            extra_placeholders={"output": "wd_out.bin", "bypass_profile": bypass_stem} if bypass_stem else {"output": "wd_out.bin"},
+        )
         logger.info(f"[DOLOS-BUILD] Running encoder: {resolved_cmd[:200]}")
 
         session_log.running_command(resolved_cmd)
@@ -577,9 +617,6 @@ class Dolos(PayloadType):
 
         logger.info(f"[DOLOS-BUILD] Setting resp.payload = {len(result_bytes)} bytes")
 
-        # Set a descriptive download filename based on detected output type.
-        # Without this, Mythic uses the default (e.g., "dolos.exe") regardless
-        # of actual content. With magic detection, a DLL gets .dll, etc.
         resp.updated_filename = download_filename
         logger.info(f"[DOLOS-BUILD] updated_filename = {resp.updated_filename} (magic: {magic_type})")
 
@@ -621,7 +658,6 @@ class Dolos(PayloadType):
         """Rebuild inner payload with same config but new UUID via MythicRPC.
         dedup_info: dict from _check_already_wrapped() with operation_id etc.
         Returns True if self.wrapped_payload was updated, False otherwise."""
-        # Step 1: Search for the inner payload's configuration
         try:
             inner_search = await SendMythicRPCPayloadSearch(
                 MythicRPCPayloadSearchMessage(
@@ -645,7 +681,6 @@ class Dolos(PayloadType):
             f"Rebuilding {inner_payload.PayloadType} payload (same config, new UUID)…",
             True)
 
-        # Get a real TaskID for operation scoping (TaskID=0 fails)
         task_id = await self._get_task_id(dedup_info["operation_id"])
         if not task_id:
             logger.error("[DOLOS-BUILD] Cannot find a TaskID for operation scoping — rebuild failed")
@@ -653,8 +688,6 @@ class Dolos(PayloadType):
 
         logger.info(f"[DOLOS-BUILD] Using TaskID {task_id} for operation {dedup_info['operation_id']}")
 
-        # Step 3: Create a new payload with the same configuration
-        # Convert search-module objects to CreateFromScratch-module objects via .to_json()
         from mythic_container.MythicGoRPC.send_mythic_rpc_payload_create_from_scratch import (
             MythicRPCPayloadConfiguration as CreateConfig,
             MythicRPCPayloadConfigurationC2Profile as CreateC2,
@@ -692,9 +725,8 @@ class Dolos(PayloadType):
         new_uuid = create_result.NewPayloadUUID
         logger.info(f"[DOLOS-BUILD] New inner payload created: {new_uuid}")
 
-        # Poll until the new build completes
-        max_wait = 300  # 5 minutes
-        poll_interval = 2  # seconds
+        max_wait = 300
+        poll_interval = 2
         elapsed = 0
         build_phase = ""
 
@@ -713,7 +745,7 @@ class Dolos(PayloadType):
                     )
                 )
             except Exception:
-                continue  # Poll errors are transient
+                continue
 
             if not poll_result.Success or not poll_result.Payloads:
                 continue
@@ -733,7 +765,6 @@ class Dolos(PayloadType):
                         f"(phase={build_phase})")
             return False
 
-        # Fetch the new payload's bytes
         new_payload = poll_result.Payloads[0]
         if not new_payload.AgentFileId:
             logger.error("[DOLOS-BUILD] New payload has no AgentFileId — cannot fetch bytes")
@@ -753,7 +784,6 @@ class Dolos(PayloadType):
             logger.error(f"[DOLOS-BUILD] Failed to get new payload content: {file_result.Error}")
             return False
 
-        # Update self to use the new payload
         new_bytes = file_result.Content
         self.wrapped_payload = new_bytes
         self.wrapped_payload_uuid = new_uuid

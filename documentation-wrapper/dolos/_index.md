@@ -9,7 +9,7 @@ weight = 100
 ## Dolos 🎭 The Craftsman of Lies
 
 Dolos is a **Mythic wrapper payload type** that transforms an existing built payload
-via an external SSH-connected server. You select a payload, choose an encoder,
+via an external SSH-connected server. You select a payload, choose an encoder profile,
 and Dolos transfers it to the remote server, runs the encoder, and brings the
 result back — all over SSH/SFTP.
 
@@ -81,26 +81,26 @@ result back — all over SSH/SFTP.
   <text x="130" y="340" class="title" font-size="10">No C2 selection</text>
   <text x="130" y="355" class="title" font-size="10">Native payload picker</text>
   <text x="340" y="322" class="label" fill="#a855f7" font-weight="bold">Encoders</text>
-  <text x="340" y="340" class="title" font-size="10">PyEncoder (C# cradle)</text>
-  <text x="340" y="355" class="title" font-size="10">Donut / ShellcodePack</text>
+  <text x="340" y="340" class="title" font-size="10">Per-profile SSH config</text>
+  <text x="340" y="355" class="title" font-size="10">Bypass profiles support</text>
   <text x="560" y="322" class="label" fill="#22c55e" font-weight="bold">Session Log</text>
   <text x="560" y="340" class="title" font-size="10">JSON artifact per build</text>
   <text x="560" y="355" class="title" font-size="10">Forensic timestamps</text>
 </svg>
 
-**Current version: v0.8.0**
+**Current version: v0.11.0**
 
 ### Quick Start
 
-1. **Set up SSH access** — Configure your external server with a username and password
-   (see [Setup](setup))
-2. **Configure `.env`** — Set `DOLOS_SSH_HOST`, `DOLOS_SSH_USERNAME`,
-   `DOLOS_SSH_PASSWORD`, and `DOLOS_REMOTE_COMMAND` in your Mythic `.env` file
-3. **Deploy encoder tools** — Copy `encoder.py` to `C:\tools\` on the remote server
-   (see [Encoder Setup](encoder-setup))
-4. **Create a payload** — Build any payload (e.g., Apollo) with its C2 profile
-5. **Create a wrapper** — Go to Create Wrapper → Dolos → select the payload → choose encoder → Build
-6. **Download the result** — Get your wrapped EXE/DLL with full session log
+1. **Configure encoder profiles** — Edit `configs/encoders/*/encoder_profile.json` with
+   your SSH server details and encoder command templates (see [Setup](setup))
+2. **Deploy encoder tools** — Copy `encoder.py` to `C:\tools\` on the remote server
+3. **SSH keys** (optional) — Place private keys in `configs/ssh_keys/` and reference them
+   from encoder profiles
+4. **Install Dolos** — `mythic-cli install folder ../Dolos` (see [Setup](setup))
+5. **Create a payload** — Build any payload (e.g., Apollo) with its C2 profile
+6. **Create a wrapper** — Go to Create Wrapper → Dolos → select the payload → choose encoder → Build
+7. **Download the result** — Get your wrapped EXE/DLL with full session log
 
 ### How It Works
 
@@ -125,17 +125,15 @@ detection, and cleanup — all with ISO 8601 timestamps and elapsed time.
 
 ### Key Features
 
+- **Per-profile SSH config** — Each encoder profile has its own SSH server, credentials, and command
+- **Bypass profiles** — Encoders like ShellcodePack can use bypass profiles that appear as a dropdown
 - **Native wrapper flow** — Select payload via Mythic's built-in selector (no file dropdown)
 - **No C2 profile selection** — The wrapped payload already has its C2; Dolos just transforms it
-- **Encoder dropdown** — Choose from pre-configured encoder commands stored in `.env`
-- **Built-in C# cradle encoder** — Compiles shellcode into standalone EXEs using `csc.exe`
-  (.NET Framework 4, built into Windows). No additional installs needed on the remote server.
-- **Full session logging** — Every SSH/SFTP event captured as a JSON artifact with timestamps.
-  Download the `.session.json` file from the build's Files tab. Searchable via GraphQL.
-- **Success/failure detection** — Exit code, output file existence, and configurable
-  success/failure string indicators
-- **Automatic workdir cleanup** — Random temp directory created per build, deleted after
-- **Build progress steps** — 8 steps reported in the UI with ✅/❌ status indicators
+- **Full session logging** — Every SSH/SFTP event captured as a JSON artifact with timestamps
+- **Success/failure detection** — Exit code, output file existence, and configurable success/failure strings
+- **Automatic workdir cleanup** — Random temp directory per build, deleted after completion
+- **Build progress steps** — 9 steps reported in the UI with ✅/❌ status indicators
+- **Config-file based** — No more editing `.env` for encoder commands or SSH credentials
 
 ## Authors
 
