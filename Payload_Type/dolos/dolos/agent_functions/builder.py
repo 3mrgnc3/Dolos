@@ -159,9 +159,22 @@ class Dolos(PayloadType):
             required=False,
             group_name="Remote Command",
         ),
+        BuildParameter(
+            name="Regenerate Shellcode",
+            parameter_type=BuildParameterType.Boolean,
+            description=(
+                "If the selected shellcode has already been wrapped by Dolos, "
+                "automatically regenerate it with the same configuration but a new UUID. "
+                "When disabled (default), the build fails with a clear message if the "
+                "shellcode was previously wrapped. Enable this to allow re-wrapping."
+            ),
+            default_value=False,
+            required=False,
+            group_name="Deduplication",
+        ),
     ]
     build_steps = [
-        BuildStep(step_name="Rebuilding", step_description="Inner payload already wrapped — regenerating shellcode with new UUID"),
+        BuildStep(step_name="Rebuilding", step_description="Auto-regenerating shellcode — inner payload already wrapped by Dolos"),
         BuildStep(step_name="Connecting", step_description="Verifying SSH connectivity, auth, and SFTP write test"),
         BuildStep(step_name="Preparing", step_description="Generating workdir and creating it on remote server"),
         BuildStep(step_name="Uploading", step_description="Sending wrapped payload to the remote workdir"),
@@ -191,6 +204,7 @@ class Dolos(PayloadType):
         timeout = int(self.get_parameter("Timeout") or 300)
         success_string = (self.get_parameter("Success String") or "").strip()
         failure_string = (self.get_parameter("Fail String") or "").strip()
+        regenerate = self.get_parameter("Regenerate Shellcode") or False
 
         # ── Validate: wrapped payload must be present ──
 
@@ -206,22 +220,38 @@ class Dolos(PayloadType):
 
         # ── Check: has this payload already been wrapped by Dolos? ──
         # Each inner payload UUID can only be wrapped once. If it already has a
-        # successful Dolos build, we rebuild the inner payload with the same
-        # configuration but a new UUID, then wrap that instead.
+        # successful Dolos build, we either fail (default) or auto-regenerate
+        # the inner payload with a new UUID (if Regenerate Shellcode is enabled).
 
         already_wrapped = await self._check_already_wrapped()
         if already_wrapped:
+            if not regenerate:
+                # Default: fail with a clear message
+                logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
+                            f"a successful Dolos build. Regenerate Shellcode not enabled.")
+                await self._step("Rebuilding",
+                    f"Shellcode {self.wrapped_payload_uuid} already wrapped by Dolos. "
+                    f"Enable \"Regenerate Shellcode\" to auto-rebuild, or choose different shellcode.",
+                    False)
+                resp.build_message = (
+                    f"The selected shellcode (UUID: {self.wrapped_payload_uuid}) has already "
+                    f"been wrapped by Dolos. To re-wrap it, enable \"Regenerate Shellcode\" "
+                    f"in the build parameters to auto-generate a fresh copy, or select "
+                    f"a different shellcode payload."
+                )
+                return resp
+
             logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
-                        f"a successful Dolos build. Rebuilding inner payload with new UUID.")
+                        f"a successful Dolos build. Regenerate Shellcode enabled — "
+                        f"rebuilding inner payload with new UUID.")
             rebuild_ok = await self._rebuild_inner_payload()
             if not rebuild_ok:
                 await self._step("Rebuilding",
-                    "Failed to rebuild inner payload. Generate a new shellcode and try again.",
+                    "Failed to regenerate shellcode. Build a new shellcode manually and try again.",
                     False)
                 resp.build_message = (
-                    f"The selected payload (UUID: {self.wrapped_payload_uuid}) has already "
-                    f"been wrapped by Dolos. To wrap again, create a new payload with the "
-                    f"same configuration in Mythic and select that instead."
+                    f"Auto-regeneration of shellcode {self.wrapped_payload_uuid} failed. "
+                    f"Create a new shellcode payload in Mythic and select that instead."
                 )
                 return resp
             # self.wrapped_payload and self.wrapped_payload_uuid are now updated
@@ -721,14 +751,26 @@ class Dolos(PayloadType):
             True)
 
         # Step 2: Create a new payload with the same configuration
-        new_config = MythicRPCPayloadConfiguration(
-            description=f"Auto-rebuilt for Dolos wrapping (from {inner_payload.Description or inner_payload.Filename})",
-            payload_type=inner_payload.PayloadType,
-            c2_profiles=inner_payload.C2Profiles,
-            build_parameters=inner_payload.BuildParameters,
-            commands=inner_payload.Commands,
-            selected_os=inner_payload.SelectedOS,
-            filename=inner_payload.Filename,
+        # The search result returns PayloadConfiguration objects from the search
+        # module, but CreateFromScratch expects its own module's classes.
+        # We use .to_json() to convert to plain dicts, then reconstruct.
+        from mythic_container.MythicGoRPC.send_mythic_rpc_payload_create_from_scratch import (
+            MythicRPCPayloadConfiguration as CreateConfig,
+            MythicRPCPayloadConfigurationC2Profile as CreateC2,
+            MythicRPCPayloadConfigurationBuildParameter as CreateBuildParam,
+        )
+
+        c2_profiles = [CreateC2(**profile.to_json()) for profile in (inner_payload.C2Profiles or [])]
+        build_params = [CreateBuildParam(**param.to_json()) for param in (inner_payload.BuildParameters or [])]
+
+        new_config = CreateConfig(
+            Description=f"Auto-rebuilt for Dolos wrapping (from {inner_payload.Description or inner_payload.Filename})",
+            PayloadType=inner_payload.PayloadType,
+            C2Profiles=c2_profiles,
+            BuildParameters=build_params,
+            Commands=inner_payload.Commands,
+            SelectedOS=inner_payload.SelectedOS,
+            Filename=inner_payload.Filename,
         )
 
         try:
