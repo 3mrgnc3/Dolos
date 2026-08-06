@@ -20,6 +20,7 @@ artifact (<payload_name>.session.json) alongside the build result. This
 provides forensically complete, timestamped logging of every operation.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -159,6 +160,7 @@ class Dolos(PayloadType):
         ),
     ]
     build_steps = [
+        BuildStep(step_name="Rebuilding", step_description="Inner payload already wrapped — regenerating shellcode with new UUID"),
         BuildStep(step_name="Connecting", step_description="Verifying SSH connectivity, auth, and SFTP write test"),
         BuildStep(step_name="Preparing", step_description="Generating workdir and creating it on remote server"),
         BuildStep(step_name="Uploading", step_description="Sending wrapped payload to the remote workdir"),
@@ -200,6 +202,30 @@ class Dolos(PayloadType):
             await self._step("Connecting", "No encoder selected", False)
             resp.build_message = "Encoder is required — select an encoder command from the dropdown"
             return resp
+
+        # ── Check: has this payload already been wrapped by Dolos? ──
+        # Each inner payload UUID can only be wrapped once. If it already has a
+        # successful Dolos build, we rebuild the inner payload with the same
+        # configuration but a new UUID, then wrap that instead.
+
+        already_wrapped = await self._check_already_wrapped()
+        if already_wrapped:
+            logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
+                        f"a successful Dolos build (payload {already_wrapped.uuid}). "
+                        f"Rebuilding inner payload with new UUID.")
+            rebuild_ok = await self._rebuild_inner_payload(already_wrapped)
+            if not rebuild_ok:
+                await self._step("Rebuilding",
+                    "Failed to rebuild inner payload. Generate a new shellcode and try again.",
+                    False)
+                resp.build_message = (
+                    f"The selected payload (UUID: {self.wrapped_payload_uuid}) has already "
+                    f"been wrapped by Dolos. To wrap again, create a new payload with the "
+                    f"same configuration in Mythic and select that instead."
+                )
+                return resp
+            # self.wrapped_payload and self.wrapped_payload_uuid are now updated
+            # to point to the freshly rebuilt inner payload
 
         payload_bytes = self.wrapped_payload
         payload_size = len(payload_bytes)
@@ -553,6 +579,182 @@ class Dolos(PayloadType):
 
         logger.critical(f"[DOLOS-BUILD] ========== build() COMPLETE, returning {len(result_bytes)} bytes ==========")
         return resp
+
+    # -----------------------------------------------------------------------
+    # Shellcode deduplication — rebuild inner payload if already wrapped
+    # -----------------------------------------------------------------------
+
+    async def _check_already_wrapped(self):
+        """Check if the wrapped payload UUID already has a successful Dolos build.
+
+        Uses SendMythicRPCPayloadSearch to find Dolos payloads that wrapped this
+        inner payload UUID. Returns the first successful Dolos build's
+        PayloadConfiguration if found, or None if the inner payload hasn't been
+        wrapped yet.
+        """
+        if not self.wrapped_payload_uuid:
+            return None
+
+        try:
+            search_result = await SendMythicRPCPayloadSearch(
+                MythicRPCPayloadSearchMessage(
+                    PayloadTypes=["dolos"],
+                )
+            )
+        except Exception as e:
+            logger.warning(f"[DOLOS-BUILD] Payload search failed (will proceed anyway): {e}")
+            return None
+
+        if not search_result.Success:
+            logger.warning(f"[DOLOS-BUILD] Payload search error: {search_result.Error}")
+            return None
+
+        for payload in search_result.Payloads:
+            # Check if this Dolos payload wrapped the same inner UUID
+            if payload.WrappedPayloadUUID == self.wrapped_payload_uuid:
+                # Check if it completed successfully
+                if payload.BuildPhase == "success":
+                    logger.info(f"[DOLOS-BUILD] Found existing Dolos build: "
+                                f"payload {payload.UUID} (id={payload.AgentFileId}) "
+                                f"already wraps {self.wrapped_payload_uuid}")
+                    return payload
+        return None
+
+    async def _rebuild_inner_payload(self, existing_dolos_build) -> bool:
+        """Rebuild the inner payload with the same configuration but a new UUID.
+
+        Queries Mythic for the inner payload's full configuration (build parameters,
+        C2 profiles, commands, OS), then triggers a new build via
+        SendMythicRPCPayloadCreateFromScratch. Polls until the new build completes,
+        then updates self.wrapped_payload and self.wrapped_payload_uuid to point
+        to the fresh payload.
+
+        Returns True if rebuild succeeded, False if it failed.
+        """
+        # Step 1: Search for the inner payload's configuration
+        try:
+            inner_search = await SendMythicRPCPayloadSearch(
+                MythicRPCPayloadSearchMessage(
+                    PayloadUUID=self.wrapped_payload_uuid,
+                )
+            )
+        except Exception as e:
+            logger.error(f"[DOLOS-BUILD] Failed to search for inner payload: {e}")
+            return False
+
+        if not inner_search.Success or not inner_search.Payloads:
+            logger.error(f"[DOLOS-BUILD] Inner payload not found: {inner_search.Error}")
+            return False
+
+        inner_payload = inner_search.Payloads[0]
+        logger.info(f"[DOLOS-BUILD] Found inner payload: type={inner_payload.PayloadType}, "
+                    f"uuid={inner_payload.UUID}, "
+                    f"os={inner_payload.SelectedOS}")
+
+        await self._step("Rebuilding",
+            f"Rebuilding {inner_payload.PayloadType} payload (same config, new UUID)…",
+            True)
+
+        # Step 2: Create a new payload with the same configuration
+        new_config = MythicRPCPayloadConfiguration(
+            description=f"Auto-rebuilt for Dolos wrapping (from {inner_payload.Description or inner_payload.Filename})",
+            payload_type=inner_payload.PayloadType,
+            c2_profiles=inner_payload.C2Profiles,
+            build_parameters=inner_payload.BuildParameters,
+            commands=inner_payload.Commands,
+            selected_os=inner_payload.SelectedOS,
+            filename=inner_payload.Filename,
+        )
+
+        try:
+            create_result = await SendMythicRPCPayloadCreateFromScratch(
+                MythicRPCPayloadCreateFromScratchMessage(
+                    TaskID=0,  # No task context — scoped to operation by Mythic
+                    PayloadConfiguration=new_config,
+                )
+            )
+        except Exception as e:
+            logger.error(f"[DOLOS-BUILD] Failed to create new inner payload: {e}")
+            return False
+
+        if not create_result.Success:
+            logger.error(f"[DOLOS-BUILD] Inner payload rebuild failed: {create_result.Error}")
+            return False
+
+        new_uuid = create_result.NewPayloadUUID
+        logger.info(f"[DOLOS-BUILD] New inner payload created: {new_uuid}")
+
+        # Step 3: Poll until the new build completes
+        max_wait = 300  # 5 minutes
+        poll_interval = 2  # seconds
+        elapsed = 0
+        build_phase = ""
+
+        await self._step("Rebuilding",
+            f"Waiting for {inner_payload.PayloadType} build to complete…",
+            True)
+
+        while elapsed < max_wait:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+            try:
+                poll_result = await SendMythicRPCPayloadSearch(
+                    MythicRPCPayloadSearchMessage(
+                        PayloadUUID=new_uuid,
+                    )
+                )
+            except Exception:
+                continue  # Poll errors are transient
+
+            if not poll_result.Success or not poll_result.Payloads:
+                continue
+
+            build_phase = poll_result.Payloads[0].BuildPhase
+            logger.info(f"[DOLOS-BUILD] Rebuild poll: uuid={new_uuid}, "
+                        f"phase={build_phase}, elapsed={elapsed}s")
+
+            if build_phase == "success":
+                break
+            elif build_phase == "error":
+                logger.error(f"[DOLOS-BUILD] Inner payload rebuild failed (error phase)")
+                return False
+
+        if build_phase != "success":
+            logger.error(f"[DOLOS-BUILD] Inner payload rebuild timed out after {max_wait}s "
+                        f"(phase={build_phase})")
+            return False
+
+        # Step 4: Fetch the new payload's bytes
+        new_payload = poll_result.Payloads[0]
+        if not new_payload.AgentFileId:
+            logger.error("[DOLOS-BUILD] New payload has no AgentFileId — cannot fetch bytes")
+            return False
+
+        try:
+            file_result = await SendMythicRPCFileGetContent(
+                MythicRPCFileGetContentMessage(
+                    AgentFileID=new_payload.AgentFileId,
+                )
+            )
+        except Exception as e:
+            logger.error(f"[DOLOS-BUILD] Failed to fetch new payload bytes: {e}")
+            return False
+
+        if not file_result.Success:
+            logger.error(f"[DOLOS-BUILD] Failed to get new payload content: {file_result.Error}")
+            return False
+
+        # Step 5: Update self to use the new payload
+        new_bytes = file_result.Content
+        self.wrapped_payload = new_bytes
+        self.wrapped_payload_uuid = new_uuid
+        logger.info(f"[DOLOS-BUILD] Rebuilt inner payload: {new_uuid} ({len(new_bytes):,} bytes)")
+
+        await self._step("Rebuilding",
+            f"✅ Regenerated {inner_payload.PayloadType} payload ({len(new_bytes):,} bytes) — now wrapping new UUID",
+            True)
+        return True
 
     async def _store_session_log(self, session_log: SSHSessionLog,
                                   encoder_label: str, input_size: int,
