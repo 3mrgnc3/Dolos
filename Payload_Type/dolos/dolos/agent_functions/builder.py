@@ -165,10 +165,10 @@ class Dolos(PayloadType):
             description=(
                 "If the selected shellcode has already been wrapped by Dolos, "
                 "automatically regenerate it with the same configuration but a new UUID. "
-                "When disabled (default), the build fails with a clear message if the "
-                "shellcode was previously wrapped. Enable this to allow re-wrapping."
+                "When enabled (default), wrapping proceeds by rebuilding the inner payload. "
+                "Disable this if you want the build to fail instead of auto-regenerating."
             ),
-            default_value=False,
+            default_value=True,
             required=False,
             group_name="Deduplication",
         ),
@@ -225,37 +225,27 @@ class Dolos(PayloadType):
 
         already_wrapped = await self._check_already_wrapped()
         if already_wrapped:
-            if not regenerate:
-                # Default: fail with a clear message
+            if regenerate:
+                # Regenerate ON: auto-rebuild inner payload with new UUID
                 logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
-                            f"a successful Dolos build. Regenerate Shellcode not enabled.")
+                            f"a successful Dolos build. Regenerate Shellcode enabled — "
+                            f"rebuilding inner payload with new UUID.")
+                rebuild_ok = await self._rebuild_inner_payload(already_wrapped)
+                if not rebuild_ok:
+                    await self._step("Rebuilding",
+                        "Failed to regenerate shellcode — proceeding with original.",
+                        False)
+                    # Don't fail the build — just proceed with the original shellcode
+                # else: self.wrapped_payload and self.wrapped_payload_uuid are now updated
+            else:
+                # Regenerate OFF: reuse the same shellcode, just proceed.
+                # The operator explicitly chose to wrap the same shellcode again.
+                logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
+                            f"a successful Dolos build, but Regenerate Shellcode is OFF — "
+                            f"proceeding with the same shellcode.")
                 await self._step("Rebuilding",
-                    f"Shellcode {self.wrapped_payload_uuid} already wrapped by Dolos. "
-                    f"Enable \"Regenerate Shellcode\" to auto-rebuild, or choose different shellcode.",
-                    False)
-                resp.build_message = (
-                    f"The selected shellcode (UUID: {self.wrapped_payload_uuid}) has already "
-                    f"been wrapped by Dolos. To re-wrap it, enable \"Regenerate Shellcode\" "
-                    f"in the build parameters to auto-generate a fresh copy, or select "
-                    f"a different shellcode payload."
-                )
-                return resp
-
-            logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
-                        f"a successful Dolos build. Regenerate Shellcode enabled — "
-                        f"rebuilding inner payload with new UUID.")
-            rebuild_ok = await self._rebuild_inner_payload()
-            if not rebuild_ok:
-                await self._step("Rebuilding",
-                    "Failed to regenerate shellcode. Build a new shellcode manually and try again.",
-                    False)
-                resp.build_message = (
-                    f"Auto-regeneration of shellcode {self.wrapped_payload_uuid} failed. "
-                    f"Create a new shellcode payload in Mythic and select that instead."
-                )
-                return resp
-            # self.wrapped_payload and self.wrapped_payload_uuid are now updated
-            # to point to the freshly rebuilt inner payload
+                    f"Shellcode already wrapped — re-wrapping as-is (Regenerate Shellcode is OFF)",
+                    True)
 
         payload_bytes = self.wrapped_payload
         payload_size = len(payload_bytes)
@@ -611,7 +601,71 @@ class Dolos(PayloadType):
         return resp
 
     # -----------------------------------------------------------------------
-    # Shellcode deduplication — rebuild inner payload if already wrapped
+    # Hasura helpers — get operation-scoped TaskID for MythicRPC calls
+    # -----------------------------------------------------------------------
+
+    async def _get_task_id(self, operation_id: int) -> int | None:
+        """Look up any TaskID in the given operation via Hasura.
+
+        SendMythicRPCPayloadCreateFromScratch requires a TaskID to scope the build
+        to the correct operation. We don't have a task context during build, so we
+        look up any task in the same operation via Hasura GraphQL.
+
+        Returns a TaskID (int) or None if no task found.
+        """
+        import urllib.request
+        import urllib.error
+
+        hasura_url = os.environ.get("HASURA_URL",
+            "http://127.0.0.1:8080/v1/graphql" if os.environ.get("DOLOS_DEV_MODE")
+            else "http://mythic_graphql:8080/v1/graphql")
+        hasura_secret = os.environ.get("HASURA_SECRET", "")
+
+        if not hasura_secret:
+            logger.error("[DOLOS-BUILD] HASURA_SECRET not set — cannot look up TaskID")
+            return None
+
+        ssl_ctx = None
+        if os.environ.get("DOLOS_DEV_MODE"):
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        headers = {
+            "Content-Type": "application/json",
+            "x-hasura-admin-secret": hasura_secret,
+        }
+
+        try:
+            query = json.dumps({
+                "query": '''
+                query GetTaskForOperation($op_id: Int!) {
+                  task(where: {operation_id: {_eq: $op_id}}, limit: 1, order_by: {id: desc}) {
+                    id
+                  }
+                }''',
+                "variables": {"op_id": operation_id}
+            }).encode()
+
+            req = urllib.request.Request(hasura_url, data=query, headers=headers)
+            resp = urllib.request.urlopen(req, timeout=10, context=ssl_ctx)
+            data = json.loads(resp.read())
+
+            tasks = data.get("data", {}).get("task", [])
+            if not tasks:
+                logger.error(f"[DOLOS-BUILD] No tasks found in operation {operation_id} — cannot scope rebuild")
+                return None
+
+            task_id = tasks[0]["id"]
+            logger.info(f"[DOLOS-BUILD] Found TaskID {task_id} in operation {operation_id}")
+            return task_id
+
+        except Exception as e:
+            logger.error(f"[DOLOS-BUILD] Hasura TaskID lookup failed: {e}")
+            return None
+
+    # -----------------------------------------------------------------------
+    # Shellcode deduplication — check and rebuild
     # -----------------------------------------------------------------------
 
     async def _check_already_wrapped(self):
@@ -622,8 +676,8 @@ class Dolos(PayloadType):
         it requires a PayloadUUID or CallbackID and can't filter by wrapped_payload_id.
         Hasura can.
 
-        Returns True if the inner payload already has a successful Dolos build,
-        or None if it hasn't been wrapped yet.
+        Returns a dict with 'inner_id', 'inner_uuid', 'operation_id', and 'wrapper_uuid'
+        if the inner payload already has a successful Dolos build, or None otherwise.
         """
         if not self.wrapped_payload_uuid:
             return None
@@ -656,13 +710,14 @@ class Dolos(PayloadType):
         }
 
         try:
-            # Step 1: Get the inner payload's database ID from its UUID
+            # Step 1: Get the inner payload's database ID and operation_id from its UUID
             inner_uuid = self.wrapped_payload_uuid
             inner_query = json.dumps({
                 "query": '''
                 query GetInnerPayload($uuid: String!) {
                   payload(where: {uuid: {_eq: $uuid}}) {
                     id
+                    operation_id
                   }
                 }''',
                 "variables": {"uuid": inner_uuid}
@@ -679,7 +734,9 @@ class Dolos(PayloadType):
                 return None
 
             inner_id = inner_payloads[0]["id"]
-            logger.info(f"[DOLOS-BUILD] Inner payload UUID {inner_uuid} → DB id {inner_id}")
+            operation_id = inner_payloads[0]["operation_id"]
+            logger.info(f"[DOLOS-BUILD] Inner payload UUID {inner_uuid} → DB id {inner_id}, "
+                        f"operation_id {operation_id}")
 
             # Step 2: Find Dolos payloads that successfully wrap this inner payload
             wrap_query = json.dumps({
@@ -710,21 +767,28 @@ class Dolos(PayloadType):
             wrapper = dolos_wrappers[0]
             logger.info(f"[DOLOS-BUILD] Inner payload {inner_uuid} (id={inner_id}) already has "
                         f"a successful Dolos build: payload {wrapper['uuid']} (id={wrapper['id']})")
-            return True
+            return {
+                "inner_id": inner_id,
+                "inner_uuid": inner_uuid,
+                "operation_id": operation_id,
+                "wrapper_uuid": wrapper["uuid"],
+            }
 
         logger.info(f"[DOLOS-BUILD] Inner payload {inner_uuid} (id={inner_id}) has no existing Dolos builds — proceeding")
         return None
 
-    async def _rebuild_inner_payload(self) -> bool:
+    async def _rebuild_inner_payload(self, dedup_info: dict) -> bool:
         """Rebuild the inner payload with the same configuration but a new UUID.
 
-        Queries Mythic for the inner payload's full configuration (build parameters,
-        C2 profiles, commands, OS), then triggers a new build via
-        SendMythicRPCPayloadCreateFromScratch. Polls until the new build completes,
-        then updates self.wrapped_payload and self.wrapped_payload_uuid to point
-        to the fresh payload.
+        Uses MythicRPC SendMythicRPCPayloadCreateFromScratch to trigger a new build
+        of the inner payload with identical config. Polls until complete, then fetches
+        the new bytes and updates self.wrapped_payload / self.wrapped_payload_uuid.
 
-        Returns True if rebuild succeeded, False if it failed.
+        Args:
+            dedup_info: Dict from _check_already_wrapped() with keys:
+                'inner_id', 'inner_uuid', 'operation_id', 'wrapper_uuid'
+
+        Returns True if rebuild succeeded (self.wrapped_payload updated), False otherwise.
         """
         # Step 1: Search for the inner payload's configuration
         try:
@@ -750,7 +814,18 @@ class Dolos(PayloadType):
             f"Rebuilding {inner_payload.PayloadType} payload (same config, new UUID)…",
             True)
 
-        # Step 2: Create a new payload with the same configuration
+        # Step 2: Get a real TaskID for operation scoping
+        # CreateFromScratch requires TaskID to scope the build to an operation.
+        # TaskID=0 fails with "sql: no rows in result set" — Mythic can't find
+        # the operation. We look up any task in the same operation via Hasura.
+        task_id = await self._get_task_id(dedup_info["operation_id"])
+        if not task_id:
+            logger.error("[DOLOS-BUILD] Cannot find a TaskID for operation scoping — rebuild failed")
+            return False
+
+        logger.info(f"[DOLOS-BUILD] Using TaskID {task_id} for operation {dedup_info['operation_id']}")
+
+        # Step 3: Create a new payload with the same configuration
         # The search result returns PayloadConfiguration objects from the search
         # module, but CreateFromScratch expects its own module's classes.
         # We use .to_json() to convert to plain dicts, then reconstruct.
@@ -776,7 +851,7 @@ class Dolos(PayloadType):
         try:
             create_result = await SendMythicRPCPayloadCreateFromScratch(
                 MythicRPCPayloadCreateFromScratchMessage(
-                    TaskID=0,  # No task context — scoped to operation by Mythic
+                    TaskID=task_id,
                     PayloadConfiguration=new_config,
                 )
             )
