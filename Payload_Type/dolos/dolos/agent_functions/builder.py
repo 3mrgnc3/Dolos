@@ -601,195 +601,26 @@ class Dolos(PayloadType):
         return resp
 
     # -----------------------------------------------------------------------
-    # Hasura helpers — get operation-scoped TaskID for MythicRPC calls
-    # -----------------------------------------------------------------------
-
-    async def _get_task_id(self, operation_id: int) -> int | None:
-        """Look up any TaskID in the given operation via Hasura.
-
-        SendMythicRPCPayloadCreateFromScratch requires a TaskID to scope the build
-        to the correct operation. We don't have a task context during build, so we
-        look up any task in the same operation via Hasura GraphQL.
-
-        Returns a TaskID (int) or None if no task found.
-        """
-        import urllib.request
-        import urllib.error
-
-        hasura_url = os.environ.get("HASURA_URL",
-            "http://127.0.0.1:8080/v1/graphql" if os.environ.get("DOLOS_DEV_MODE")
-            else "http://mythic_graphql:8080/v1/graphql")
-        hasura_secret = os.environ.get("HASURA_SECRET", "")
-
-        if not hasura_secret:
-            logger.error("[DOLOS-BUILD] HASURA_SECRET not set — cannot look up TaskID")
-            return None
-
-        ssl_ctx = None
-        if os.environ.get("DOLOS_DEV_MODE"):
-            ssl_ctx = ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-
-        headers = {
-            "Content-Type": "application/json",
-            "x-hasura-admin-secret": hasura_secret,
-        }
-
-        try:
-            query = json.dumps({
-                "query": '''
-                query GetTaskForOperation($op_id: Int!) {
-                  task(where: {operation_id: {_eq: $op_id}}, limit: 1, order_by: {id: desc}) {
-                    id
-                  }
-                }''',
-                "variables": {"op_id": operation_id}
-            }).encode()
-
-            req = urllib.request.Request(hasura_url, data=query, headers=headers)
-            resp = urllib.request.urlopen(req, timeout=10, context=ssl_ctx)
-            data = json.loads(resp.read())
-
-            tasks = data.get("data", {}).get("task", [])
-            if not tasks:
-                logger.error(f"[DOLOS-BUILD] No tasks found in operation {operation_id} — cannot scope rebuild")
-                return None
-
-            task_id = tasks[0]["id"]
-            logger.info(f"[DOLOS-BUILD] Found TaskID {task_id} in operation {operation_id}")
-            return task_id
-
-        except Exception as e:
-            logger.error(f"[DOLOS-BUILD] Hasura TaskID lookup failed: {e}")
-            return None
-
-    # -----------------------------------------------------------------------
     # Shellcode deduplication — check and rebuild
     # -----------------------------------------------------------------------
 
-    async def _check_already_wrapped(self):
-        """Check if the wrapped payload UUID already has a successful Dolos build.
-
-        Uses Hasura GraphQL to find Dolos payloads where wrapped_payload_id
-        matches our inner payload. SendMythicRPCPayloadSearch can't do this —
-        it requires a PayloadUUID or CallbackID and can't filter by wrapped_payload_id.
-        Hasura can.
-
-        Returns a dict with 'inner_id', 'inner_uuid', 'operation_id', and 'wrapper_uuid'
-        if the inner payload already has a successful Dolos build, or None otherwise.
-        """
+    async def _check_already_wrapped(self) -> dict | None:
+        """Check if the inner payload already has a successful Dolos build.
+        Returns dedup_info dict or None."""
         if not self.wrapped_payload_uuid:
             return None
+        from dolos.hasura import HasuraClient
+        return HasuraClient().check_already_wrapped(self.wrapped_payload_uuid)
 
-        import urllib.request
-        import urllib.error
-
-        # In Docker: mythic_graphql resolves via Docker network
-        # In local debug: must use 127.0.0.1
-        hasura_url = os.environ.get("HASURA_URL",
-            "http://127.0.0.1:8080/v1/graphql" if os.environ.get("DOLOS_DEV_MODE")
-            else "http://mythic_graphql:8080/v1/graphql")
-        hasura_secret = os.environ.get("HASURA_SECRET", "")
-
-        if not hasura_secret:
-            logger.warning("[DOLOS-BUILD] HASURA_SECRET not set — cannot check for "
-                          "already-wrapped payloads. Proceeding without deduplication.")
-            return None
-
-        # Allow self-signed certs in dev mode
-        ssl_ctx = None
-        if os.environ.get("DOLOS_DEV_MODE"):
-            ssl_ctx = ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-
-        headers = {
-            "Content-Type": "application/json",
-            "x-hasura-admin-secret": hasura_secret,
-        }
-
-        try:
-            # Step 1: Get the inner payload's database ID and operation_id from its UUID
-            inner_uuid = self.wrapped_payload_uuid
-            inner_query = json.dumps({
-                "query": '''
-                query GetInnerPayload($uuid: String!) {
-                  payload(where: {uuid: {_eq: $uuid}}) {
-                    id
-                    operation_id
-                  }
-                }''',
-                "variables": {"uuid": inner_uuid}
-            }).encode()
-
-            req1 = urllib.request.Request(hasura_url, data=inner_query, headers=headers)
-            resp1 = urllib.request.urlopen(req1, timeout=10, context=ssl_ctx)
-            inner_data = json.loads(resp1.read())
-
-            inner_payloads = inner_data.get("data", {}).get("payload", [])
-            if not inner_payloads:
-                logger.info(f"[DOLOS-BUILD] Inner payload UUID {inner_uuid} not found in DB — "
-                            "no dedup check possible")
-                return None
-
-            inner_id = inner_payloads[0]["id"]
-            operation_id = inner_payloads[0]["operation_id"]
-            logger.info(f"[DOLOS-BUILD] Inner payload UUID {inner_uuid} → DB id {inner_id}, "
-                        f"operation_id {operation_id}")
-
-            # Step 2: Find Dolos payloads that successfully wrap this inner payload
-            wrap_query = json.dumps({
-                "query": '''
-                query FindDolosWrappers($inner_id: Int!) {
-                  payload(where: {
-                    payloadtype: {name: {_eq: "dolos"}},
-                    wrapped_payload_id: {_eq: $inner_id},
-                    build_phase: {_eq: "success"}
-                  }, order_by: {id: desc}, limit: 1) {
-                    id uuid build_phase
-                  }
-                }''',
-                "variables": {"inner_id": inner_id}
-            }).encode()
-
-            req2 = urllib.request.Request(hasura_url, data=wrap_query, headers=headers)
-            resp2 = urllib.request.urlopen(req2, timeout=10, context=ssl_ctx)
-            wrap_data = json.loads(resp2.read())
-
-            dolos_wrappers = wrap_data.get("data", {}).get("payload", [])
-
-        except Exception as e:
-            logger.warning(f"[DOLOS-BUILD] Hasura query failed (will proceed without dedup): {e}")
-            return None
-
-        if dolos_wrappers:
-            wrapper = dolos_wrappers[0]
-            logger.info(f"[DOLOS-BUILD] Inner payload {inner_uuid} (id={inner_id}) already has "
-                        f"a successful Dolos build: payload {wrapper['uuid']} (id={wrapper['id']})")
-            return {
-                "inner_id": inner_id,
-                "inner_uuid": inner_uuid,
-                "operation_id": operation_id,
-                "wrapper_uuid": wrapper["uuid"],
-            }
-
-        logger.info(f"[DOLOS-BUILD] Inner payload {inner_uuid} (id={inner_id}) has no existing Dolos builds — proceeding")
-        return None
+    async def _get_task_id(self, operation_id: int) -> int | None:
+        """Look up any TaskID in the given operation for MythicRPC scoping."""
+        from dolos.hasura import HasuraClient
+        return HasuraClient().get_task_id(operation_id)
 
     async def _rebuild_inner_payload(self, dedup_info: dict) -> bool:
-        """Rebuild the inner payload with the same configuration but a new UUID.
-
-        Uses MythicRPC SendMythicRPCPayloadCreateFromScratch to trigger a new build
-        of the inner payload with identical config. Polls until complete, then fetches
-        the new bytes and updates self.wrapped_payload / self.wrapped_payload_uuid.
-
-        Args:
-            dedup_info: Dict from _check_already_wrapped() with keys:
-                'inner_id', 'inner_uuid', 'operation_id', 'wrapper_uuid'
-
-        Returns True if rebuild succeeded (self.wrapped_payload updated), False otherwise.
-        """
+        """Rebuild inner payload with same config but new UUID via MythicRPC.
+        dedup_info: dict from _check_already_wrapped() with operation_id etc.
+        Returns True if self.wrapped_payload was updated, False otherwise."""
         # Step 1: Search for the inner payload's configuration
         try:
             inner_search = await SendMythicRPCPayloadSearch(
@@ -814,10 +645,7 @@ class Dolos(PayloadType):
             f"Rebuilding {inner_payload.PayloadType} payload (same config, new UUID)…",
             True)
 
-        # Step 2: Get a real TaskID for operation scoping
-        # CreateFromScratch requires TaskID to scope the build to an operation.
-        # TaskID=0 fails with "sql: no rows in result set" — Mythic can't find
-        # the operation. We look up any task in the same operation via Hasura.
+        # Get a real TaskID for operation scoping (TaskID=0 fails)
         task_id = await self._get_task_id(dedup_info["operation_id"])
         if not task_id:
             logger.error("[DOLOS-BUILD] Cannot find a TaskID for operation scoping — rebuild failed")
@@ -826,9 +654,7 @@ class Dolos(PayloadType):
         logger.info(f"[DOLOS-BUILD] Using TaskID {task_id} for operation {dedup_info['operation_id']}")
 
         # Step 3: Create a new payload with the same configuration
-        # The search result returns PayloadConfiguration objects from the search
-        # module, but CreateFromScratch expects its own module's classes.
-        # We use .to_json() to convert to plain dicts, then reconstruct.
+        # Convert search-module objects to CreateFromScratch-module objects via .to_json()
         from mythic_container.MythicGoRPC.send_mythic_rpc_payload_create_from_scratch import (
             MythicRPCPayloadConfiguration as CreateConfig,
             MythicRPCPayloadConfigurationC2Profile as CreateC2,
@@ -866,7 +692,7 @@ class Dolos(PayloadType):
         new_uuid = create_result.NewPayloadUUID
         logger.info(f"[DOLOS-BUILD] New inner payload created: {new_uuid}")
 
-        # Step 3: Poll until the new build completes
+        # Poll until the new build completes
         max_wait = 300  # 5 minutes
         poll_interval = 2  # seconds
         elapsed = 0
@@ -907,7 +733,7 @@ class Dolos(PayloadType):
                         f"(phase={build_phase})")
             return False
 
-        # Step 4: Fetch the new payload's bytes
+        # Fetch the new payload's bytes
         new_payload = poll_result.Payloads[0]
         if not new_payload.AgentFileId:
             logger.error("[DOLOS-BUILD] New payload has no AgentFileId — cannot fetch bytes")
@@ -927,7 +753,7 @@ class Dolos(PayloadType):
             logger.error(f"[DOLOS-BUILD] Failed to get new payload content: {file_result.Error}")
             return False
 
-        # Step 5: Update self to use the new payload
+        # Update self to use the new payload
         new_bytes = file_result.Content
         self.wrapped_payload = new_bytes
         self.wrapped_payload_uuid = new_uuid
