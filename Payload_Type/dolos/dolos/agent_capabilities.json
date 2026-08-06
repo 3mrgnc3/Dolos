@@ -1,5 +1,5 @@
 {
-  "os": ["Windows", "SSH Server + Any OS"],
+  "os": ["SSH Server + Any OS"],
   "languages": ["Python"],
   "features": {
     "mythic": ["wrapper"],

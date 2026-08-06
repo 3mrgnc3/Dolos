@@ -91,7 +91,7 @@ class Dolos(PayloadType):
     name = "dolos"
     file_extension = "bin"
     author = "@3mrgnc3"
-    supported_os = [SupportedOS.Windows, "SSH Server + Any OS"]
+    supported_os = ["SSH Server + Any OS"]
     wrapper = True
     # Payload types Dolos can wrap. Listed on the wrapper side because we can't
     # modify each agent's code to list Dolos. Mythic's sync deletion is commented
