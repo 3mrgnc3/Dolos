@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import pathlib
+import ssl
 import time
 import tempfile
 import shutil
@@ -597,76 +598,37 @@ class Dolos(PayloadType):
         if not self.wrapped_payload_uuid:
             return None
 
-        # Find the inner payload's database ID via its UUID
-        # Then query Dolos payloads that wrap it
-        try:
-            import urllib.request
-            import urllib.error
-            import json as _json
+        import urllib.request
+        import urllib.error
 
-            # In Docker: mythic_graphql resolves via Docker network
-            # In local debug: must use 127.0.0.1
-            hasura_url = os.environ.get("HASURA_URL",
-                "http://127.0.0.1:8080/v1/graphql" if os.environ.get("DOLOS_DEV_MODE")
-                else "http://mythic_graphql:8080/v1/graphql")
-            hasura_secret = os.environ.get("HASURA_SECRET", "")
+        # In Docker: mythic_graphql resolves via Docker network
+        # In local debug: must use 127.0.0.1
+        hasura_url = os.environ.get("HASURA_URL",
+            "http://127.0.0.1:8080/v1/graphql" if os.environ.get("DOLOS_DEV_MODE")
+            else "http://mythic_graphql:8080/v1/graphql")
+        hasura_secret = os.environ.get("HASURA_SECRET", "")
 
-            # If no Hasura secret, try to skip (local dev might not have it)
-            if not hasura_secret:
-                logger.warning("[DOLOS-BUILD] HASURA_SECRET not set — cannot check for "
-                              "already-wrapped payloads. Proceeding without deduplication.")
-                return None
-
-            query = _json.dumps({
-                "query": '''
-                query FindWrappedPayloads($uuid: String!) {
-                  payload(where: {
-                    payloadtype: {name: {_eq: "dolos"}},
-                    wrapped_payload_id: {_is_null: false}
-                  }, order_by: {id: desc}) {
-                    id uuid wrapped_payload_id build_phase
-                    payloadtype { name }
-                  }
-                }''',
-                "variables": {"uuid": self.wrapped_payload_uuid}
-            }).encode()
-
-            req = urllib.request.Request(hasura_url, data=query,
-                                       headers={
-                                           "Content-Type": "application/json",
-                                           "x-hasura-admin-secret": hasura_secret
-                                       })
-
-            # Allow self-signed certs in dev mode
-            ssl_ctx = None
-            if os.environ.get("DOLOS_DEV_MODE"):
-                ssl_ctx = ssl.create_default_context()
-                ssl_ctx.check_hostname = False
-                ssl_ctx.verify_mode = ssl.CERT_NONE
-
-            resp = urllib.request.urlopen(req, timeout=10, context=ssl_ctx)
-            data = _json.loads(resp.read())
-
-            payloads = data.get("data", {}).get("payload", [])
-
-        except Exception as e:
-            logger.warning(f"[DOLOS-BUILD] Hasura query failed (will proceed without dedup): {e}")
+        if not hasura_secret:
+            logger.warning("[DOLOS-BUILD] HASURA_SECRET not set — cannot check for "
+                          "already-wrapped payloads. Proceeding without deduplication.")
             return None
 
-        # Now we have all Dolos payloads, but we need to find which ones
-        # wrap OUR specific inner payload. For that, we need the inner payload's
-        # database ID. Let's get that first.
-        # Actually, we can query more directly:
-        # Find Dolos payloads where wrapped_payload points to our inner UUID's payload ID
-        # We have self.wrapped_payload_uuid — let's look up its ID from the search result
+        # Allow self-signed certs in dev mode
+        ssl_ctx = None
+        if os.environ.get("DOLOS_DEV_MODE"):
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
 
-        # Re-query with the inner payload's UUID to get its ID,
-        # then find Dolos payloads wrapping that ID
+        headers = {
+            "Content-Type": "application/json",
+            "x-hasura-admin-secret": hasura_secret,
+        }
+
         try:
+            # Step 1: Get the inner payload's database ID from its UUID
             inner_uuid = self.wrapped_payload_uuid
-
-            # Step 1: Get the inner payload's database ID
-            inner_query = _json.dumps({
+            inner_query = json.dumps({
                 "query": '''
                 query GetInnerPayload($uuid: String!) {
                   payload(where: {uuid: {_eq: $uuid}}) {
@@ -676,22 +638,21 @@ class Dolos(PayloadType):
                 "variables": {"uuid": inner_uuid}
             }).encode()
 
-            req2 = urllib.request.Request(hasura_url, data=inner_query,
-                                        headers={
-                                            "Content-Type": "application/json",
-                                            "x-hasura-admin-secret": hasura_secret
-                                        })
-            resp2 = urllib.request.urlopen(req2, timeout=10, context=ssl_ctx)
-            inner_data = _json.loads(resp2.read())
+            req1 = urllib.request.Request(hasura_url, data=inner_query, headers=headers)
+            resp1 = urllib.request.urlopen(req1, timeout=10, context=ssl_ctx)
+            inner_data = json.loads(resp1.read())
 
             inner_payloads = inner_data.get("data", {}).get("payload", [])
             if not inner_payloads:
+                logger.info(f"[DOLOS-BUILD] Inner payload UUID {inner_uuid} not found in DB — "
+                            "no dedup check possible")
                 return None
 
             inner_id = inner_payloads[0]["id"]
+            logger.info(f"[DOLOS-BUILD] Inner payload UUID {inner_uuid} → DB id {inner_id}")
 
-            # Step 2: Find Dolos payloads that wrap this inner payload ID
-            wrap_query = _json.dumps({
+            # Step 2: Find Dolos payloads that successfully wrap this inner payload
+            wrap_query = json.dumps({
                 "query": '''
                 query FindDolosWrappers($inner_id: Int!) {
                   payload(where: {
@@ -705,13 +666,9 @@ class Dolos(PayloadType):
                 "variables": {"inner_id": inner_id}
             }).encode()
 
-            req3 = urllib.request.Request(hasura_url, data=wrap_query,
-                                        headers={
-                                            "Content-Type": "application/json",
-                                            "x-hasura-admin-secret": hasura_secret
-                                        })
-            resp3 = urllib.request.urlopen(req3, timeout=10, context=ssl_ctx)
-            wrap_data = _json.loads(resp3.read())
+            req2 = urllib.request.Request(hasura_url, data=wrap_query, headers=headers)
+            resp2 = urllib.request.urlopen(req2, timeout=10, context=ssl_ctx)
+            wrap_data = json.loads(resp2.read())
 
             dolos_wrappers = wrap_data.get("data", {}).get("payload", [])
 
@@ -725,6 +682,7 @@ class Dolos(PayloadType):
                         f"a successful Dolos build: payload {wrapper['uuid']} (id={wrapper['id']})")
             return True
 
+        logger.info(f"[DOLOS-BUILD] Inner payload {inner_uuid} (id={inner_id}) has no existing Dolos builds — proceeding")
         return None
 
     async def _rebuild_inner_payload(self) -> bool:
