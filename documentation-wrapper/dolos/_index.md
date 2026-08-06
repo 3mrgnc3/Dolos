@@ -11,7 +11,7 @@ weight = 100
 Dolos is a **Mythic wrapper payload type** that transforms an existing built payload
 via an external SSH-connected server. You select a payload, choose an encoder profile,
 and Dolos transfers it to the remote server, runs the encoder, and brings the
-result back — all over SSH/SFTP.
+result back - all over SSH/SFTP.
 
 <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:800px;">
   <defs>
@@ -73,7 +73,7 @@ result back — all over SSH/SFTP.
   <!-- Session Log Box -->
   <rect x="30" y="220" width="740" height="55" rx="8" fill="#1a2332" stroke="#f59e0b" stroke-width="1"/>
   <text x="400" y="242" class="label" fill="#f59e0b" font-weight="bold">📄 Session Log Artifact</text>
-  <text x="400" y="260" class="label" font-size="11" fill="#888">payload_name.session.json — full timestamped log of every SSH/SFTP event, stdout/stderr, exit codes</text>
+  <text x="400" y="260" class="label" font-size="11" fill="#888">payload_name.session.json - full timestamped log of every SSH/SFTP event, stdout/stderr, exit codes</text>
 
   <!-- Key Features -->
   <rect x="30" y="295" width="740" height="70" rx="8" fill="#1a2332" stroke="#444" stroke-width="1"/>
@@ -92,20 +92,20 @@ result back — all over SSH/SFTP.
 
 ### Quick Start
 
-1. **Configure encoder profiles** — Edit `configs/encoders/*/encoder_profile.json` with
+1. **Configure encoder profiles** - Edit `configs/encoders/*/encoder_profile.json` with
    your SSH server details and encoder command templates (see [Setup](setup))
-2. **Deploy encoder tools** — Copy `encoder.py` to `C:\tools\` on the remote server
-3. **SSH keys** (optional) — Place private keys in `configs/ssh_keys/` and reference them
+2. **Deploy encoder tools** - Copy `encoder.py` to `C:\tools\` on the remote server
+3. **SSH keys** (optional) - Place private keys in `configs/ssh_keys/` and reference them
    from encoder profiles
-4. **Install Dolos** — `mythic-cli install folder ../Dolos` (see [Setup](setup))
-5. **Create a payload** — Build any payload (e.g., Apollo) with its C2 profile
-6. **Create a wrapper** — Go to Create Wrapper → Dolos → select the payload → choose encoder → Build
-7. **Download the result** — Get your wrapped EXE/DLL with full session log
+4. **Install Dolos** - `mythic-cli install folder ../Dolos` (see [Setup](setup))
+5. **Create a payload** - Build any payload (e.g., Apollo) with its C2 profile
+6. **Create a wrapper** - Go to Create Wrapper → Dolos → select the payload → choose encoder → Build
+7. **Download the result** - Get your wrapped EXE/DLL with full session log
 
 ### How It Works
 
 Dolos is a **wrapper**, not a normal payload. It appears under **Create Wrapper** (not Create Payload)
-in Mythic's UI. The wrapped payload's C2 is already embedded — no C2 profile selection needed.
+in Mythic's UI. The wrapped payload's C2 is already embedded - no C2 profile selection needed.
 
 **Build pipeline:**
 
@@ -121,19 +121,19 @@ Operator → Mythic → Dolos container ──SSH──→ Remote server
 **What gets logged (session log):**
 Every SSH connection event, SFTP operation (upload, download, mkdir, remove),
 the exact encoder command run, line-by-line stdout/stderr, exit codes, file magic
-detection, and cleanup — all with ISO 8601 timestamps and elapsed time.
+detection, and cleanup - all with ISO 8601 timestamps and elapsed time.
 
 ### Key Features
 
-- **Per-profile SSH config** — Each encoder profile has its own SSH server, credentials, and command
-- **Bypass profiles** — Encoders like ShellcodePack can use bypass profiles that appear as a dropdown
-- **Native wrapper flow** — Select payload via Mythic's built-in selector (no file dropdown)
-- **No C2 profile selection** — The wrapped payload already has its C2; Dolos just transforms it
-- **Full session logging** — Every SSH/SFTP event captured as a JSON artifact with timestamps
-- **Success/failure detection** — Exit code, output file existence, and configurable success/failure strings
-- **Automatic workdir cleanup** — Random temp directory per build, deleted after completion
-- **Build progress steps** — 9 steps reported in the UI with ✅/❌ status indicators
-- **Config-file based** — No more editing `.env` for encoder commands or SSH credentials
+- **Per-profile SSH config** - Each encoder profile has its own SSH server, credentials, and command
+- **Bypass profiles** - Encoders like ShellcodePack can use bypass profiles that appear as a dropdown
+- **Native wrapper flow** - Select payload via Mythic's built-in selector (no file dropdown)
+- **No C2 profile selection** - The wrapped payload already has its C2; Dolos just transforms it
+- **Full session logging** - Every SSH/SFTP event captured as a JSON artifact with timestamps
+- **Success/failure detection** - Exit code, output file existence, and configurable success/failure strings
+- **Automatic workdir cleanup** - Random temp directory per build, deleted after completion
+- **Build progress steps** - 9 steps reported in the UI with ✅/❌ status indicators
+- **Config-file based** - No more editing `.env` for encoder commands or SSH credentials
 
 ## Authors
 

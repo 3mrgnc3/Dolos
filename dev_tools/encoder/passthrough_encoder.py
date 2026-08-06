@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dolos Passthrough Encoder — for pipeline testing only.
+Dolos Passthrough Encoder - for pipeline testing only.
 
 Copies input to output unchanged. Validates that the input is a valid file
 and reports size. Use this to verify the Dolos transfer pipeline

@@ -1,10 +1,10 @@
-"""Dolos — Mythic Wrapper PayloadType.
+"""Dolos - Mythic Wrapper PayloadType.
 
 Dolos is a **wrapper** payload type. It takes an existing built payload (selected
 via Mythic's native "Create Wrapper" flow), transfers it to an external server
 over SSH/SFTP, runs an encoder command, and returns the transformed result.
 
-The input payload bytes arrive as ``self.wrapped_payload`` — provided natively
+The input payload bytes arrive as ``self.wrapped_payload`` - provided natively
 by Mythic. No file-dropdown, no GraphQL file lookup, no monkey-patch needed.
 
 Build parameters:
@@ -59,16 +59,16 @@ _ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
 
 
 # ---------------------------------------------------------------------------
-# PayloadType definition — a Mythic wrapper
+# PayloadType definition - a Mythic wrapper
 # ---------------------------------------------------------------------------
 
 class Dolos(PayloadType):
     """
-    Dolos — "The Craftsman of Lies" — a Mythic wrapper payload.
+    Dolos - "The Craftsman of Lies" - a Mythic wrapper payload.
 
     Takes an existing built payload (shellcode, EXE, etc.), transfers it to an
     external server over SSH, runs an encoder command, and returns the result.
-    The wrapped payload's C2 is already embedded — no C2 profile selection needed.
+    The wrapped payload's C2 is already embedded - no C2 profile selection needed.
     """
 
     name = "dolos"
@@ -78,7 +78,7 @@ class Dolos(PayloadType):
     wrapper = True
     wrapped_payloads = ["apollo", "merlin", "athena", "medusa", "hannibal", "freyja", "poopsie", "poseidon"]
     note = (
-        f"Dolos v{_VERSION} | The Craftsman of Lies — wrap an existing payload, "
+        f"Dolos v{_VERSION} | The Craftsman of Lies - wrap an existing payload, "
         "transfer it to an external server over SSH/SFTP, run an encoder "
         "(C# cradle, Donut, ShellcodePack, custom), and return the result. "
         "Built-in C# cradle encoder (csc.exe). Full session logging. "
@@ -140,7 +140,7 @@ class Dolos(PayloadType):
             parameter_type=BuildParameterType.String,
             description=(
                 "String to search for in stdout to confirm success. "
-                "Critical for pipeline logic — determines when to initiate file transfer."
+                "Critical for pipeline logic - determines when to initiate file transfer."
             ),
             default_value="ENCODING_SUCCESS",
             required=False,
@@ -172,7 +172,7 @@ class Dolos(PayloadType):
         ),
     ]
     build_steps = [
-        BuildStep(step_name="Rebuilding", step_description="Auto-regenerating shellcode — inner payload already wrapped by Dolos"),
+        BuildStep(step_name="Rebuilding", step_description="Auto-regenerating shellcode - inner payload already wrapped by Dolos"),
         BuildStep(step_name="Connecting", step_description="Verifying SSH connectivity, auth, and SFTP write test"),
         BuildStep(step_name="Preparing", step_description="Generating workdir and creating it on remote server"),
         BuildStep(step_name="Uploading", step_description="Sending wrapped payload to the remote workdir"),
@@ -208,7 +208,7 @@ class Dolos(PayloadType):
         # ── Validate: wrapped payload must be present ──
 
         if not self.wrapped_payload:
-            await self._step("Connecting", "No wrapped payload — select a payload to wrap", False)
+            await self._step("Connecting", "No wrapped payload - select a payload to wrap", False)
             resp.build_message = "No wrapped payload. Select an existing payload in the Create Wrapper dialog."
             return resp
 
@@ -250,20 +250,20 @@ class Dolos(PayloadType):
         if already_wrapped:
             if regenerate:
                 logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
-                            f"a successful Dolos build. Regenerate Shellcode enabled — "
+                            f"a successful Dolos build. Regenerate Shellcode enabled - "
                             f"rebuilding inner payload with new UUID.")
                 rebuild_ok = await self._rebuild_inner_payload(already_wrapped)
                 if not rebuild_ok:
                     await self._step("Rebuilding",
-                        "Failed to regenerate shellcode — proceeding with original.",
+                        "Failed to regenerate shellcode - proceeding with original.",
                         False)
                 # else: self.wrapped_payload and self.wrapped_payload_uuid are now updated
             else:
                 logger.info(f"[DOLOS-BUILD] Inner payload {self.wrapped_payload_uuid} already has "
-                            f"a successful Dolos build, but Regenerate Shellcode is OFF — "
+                            f"a successful Dolos build, but Regenerate Shellcode is OFF - "
                             f"proceeding with the same shellcode.")
                 await self._step("Rebuilding",
-                    f"Shellcode already wrapped — re-wrapping as-is (Regenerate Shellcode is OFF)",
+                    f"Shellcode already wrapped - re-wrapping as-is (Regenerate Shellcode is OFF)",
                     True)
 
         payload_bytes = self.wrapped_payload
@@ -352,7 +352,7 @@ class Dolos(PayloadType):
                 client.close()
                 return resp
             await self._step("Connecting",
-                f"✅ SSH ✅ Auth ✅ SFTP — connected to {remote_os}",
+                f"✅ SSH ✅ Auth ✅ SFTP - connected to {remote_os}",
                 True)
         except Exception as e:
             session_log.connection_failed(str(e))
@@ -389,30 +389,40 @@ class Dolos(PayloadType):
                 client.close()
                 return resp
 
-        # ── 3. Upload wrapped payload + bypass profiles (Step 3: Uploading) ──
+        # ── 3. Upload wrapped payload + supporting files (Step 3: Uploading) ──
 
         remote_filenames = {"input": "wd_in.bin"}
         files: list[tuple[str, bytes]] = [("wd_in.bin", payload_bytes)]
         total_size = payload_size
+        cleanup_files: list[str] = []  # extra files to remove from workdir after download
 
-        # Upload bypass profile files if command has {bypass_profile} placeholder
+        # Upload supporting files (bypass profiles, configs, etc.) from the
+        # encoder profile's bypass_profiles directory. These are SFTP'd to the
+        # remote workdir so the encoder command can reference them.
+        # {bypass_profile} resolves to the stem filename (e.g. "cortex_bypass_profile"),
+        # so the encoder command template can use it as: C:\tools\{bypass_profile}.json
+        # or relative to workdir: {workdir}\\{bypass_profile}.json
         if bypass_stem and profile.bypass_profiles_path:
-            # Find the matching .json file in bypass_profiles_path
             bp_filename = f"{bypass_stem}.json"
             bp_local_path = os.path.join(profile.bypass_profiles_path, bp_filename)
-            # Also need the remote path the encoder will reference.
-            # The encoder command uses {bypass_profile} as a filename stem.
-            # We upload bypass files to the workdir so the encoder can find them.
-            # But the command often references C:\tools\...\{bypass_profile}.json
-            # which is on the remote server's local filesystem, not in the workdir.
-            # So we DON'T upload bypass files to workdir — the encoder references
-            # them by their absolute path on the remote server.
-            # The {bypass_profile} placeholder just resolves to the stem filename.
-            pass
+            if os.path.isfile(bp_local_path):
+                try:
+                    with open(bp_local_path, "rb") as f:
+                        bp_content = f.read()
+                    files.append((bp_filename, bp_content))
+                    total_size += len(bp_content)
+                    cleanup_files.append(bp_filename)
+                    remote_filenames["bypass_profile"] = bp_filename
+                    logger.info(f"[DOLOS-BUILD] Added supporting file: {bp_filename} ({len(bp_content):,} bytes)")
+                except IOError as e:
+                    logger.warning(f"[DOLOS-BUILD] Could not read supporting file {bp_local_path}: {e}")
+                    # Non-fatal: encoder command may reference an absolute path on the server
+                    # instead of the workdir copy
 
         upload_start = time.time()
-        session_log.uploading_file("wd_in.bin", f"{workdir}/{workdir_cmd}/wd_in.bin", total_size)
-        await self._step("Uploading", f"Uploading wrapped payload ({total_size:,} bytes) to {workdir}", True)
+        file_list_str = ", ".join(f[0] for f in files)
+        session_log.uploading_file(file_list_str, f"{workdir}/", total_size)
+        await self._step("Uploading", f"Uploading {len(files)} file(s) ({total_size:,} bytes) to {workdir}", True)
 
         local_dir = tempfile.mkdtemp(prefix="dolos_")
         try:
@@ -422,7 +432,7 @@ class Dolos(PayloadType):
                     f.write(content)
                 sftp.put(local_path, workdir + "/" + filename)
             upload_elapsed = time.time() - upload_start
-            session_log.upload_complete("wd_in.bin", total_size, upload_elapsed)
+            session_log.upload_complete(file_list_str, total_size, upload_elapsed)
         except Exception as e:
             session_log.upload_failed("wd_in.bin", str(e))
             await self._step("Uploading", f"Upload failed: {e}", False)
@@ -509,6 +519,13 @@ class Dolos(PayloadType):
                     session_log.cleanup_file(workdir + "/" + filename, True)
                 except Exception as e:
                     session_log.cleanup_file(workdir + "/" + filename, False, str(e))
+            # Clean up supporting files (bypass profiles, etc.)
+            for cpf in cleanup_files:
+                try:
+                    sftp.remove(workdir + "/" + cpf)
+                    session_log.cleanup_file(workdir + "/" + cpf, True)
+                except Exception as e:
+                    session_log.cleanup_file(workdir + "/" + cpf, False, str(e))
             if output_exists:
                 try:
                     sftp.remove(output_path)
@@ -551,13 +568,13 @@ class Dolos(PayloadType):
         elif failure_indicated:
             if output_exists:
                 status = "WARNING"
-                status_detail = f"Fail indicator '{failure_string}' found, but file exists — verify manually"
+                status_detail = f"Fail indicator '{failure_string}' found, but file exists - verify manually"
             else:
                 status = "FAILURE"
                 status_detail = f"Fail indicator '{failure_string}' found in output"
         elif exit_code != 0 and output_exists:
             status = "WARNING"
-            status_detail = f"Command exited with code {exit_code} but output file exists — verify result"
+            status_detail = f"Command exited with code {exit_code} but output file exists - verify result"
         elif not output_exists:
             status = "FAILURE"
             status_detail = "Command completed but no output file produced"
@@ -573,7 +590,7 @@ class Dolos(PayloadType):
                                failure_string if failure_indicated else "")
 
         validating_msg = (
-            f"Status: {status} — {status_detail} | "
+            f"Status: {status} - {status_detail} | "
             f"Exit code: {exit_code} | "
             f"File type: {magic_type} | "
             f"Size: {payload_size:,}→{len(result_bytes):,} bytes"
@@ -625,7 +642,7 @@ class Dolos(PayloadType):
             status_prefix = f"⚠️ {status_detail}. "
 
         resp.status = BuildStatus.Success
-        resp.payload = result_bytes  # lowercase! — the v0.5.1 lesson
+        resp.payload = result_bytes  # lowercase! - the v0.5.1 lesson
         logger.info(f"[DOLOS-BUILD] resp.payload set, get_payload() = {len(resp.get_payload())} bytes")
         resp.build_message = (
             f"{status_prefix}Wrapped {payload_size:,} → {len(result_bytes):,} bytes ({magic_type}) "
@@ -638,7 +655,7 @@ class Dolos(PayloadType):
         return resp
 
     # -----------------------------------------------------------------------
-    # Shellcode deduplication — check and rebuild
+    # Shellcode deduplication - check and rebuild
     # -----------------------------------------------------------------------
 
     async def _check_already_wrapped(self) -> dict | None:
@@ -683,7 +700,7 @@ class Dolos(PayloadType):
 
         task_id = await self._get_task_id(dedup_info["operation_id"])
         if not task_id:
-            logger.error("[DOLOS-BUILD] Cannot find a TaskID for operation scoping — rebuild failed")
+            logger.error("[DOLOS-BUILD] Cannot find a TaskID for operation scoping - rebuild failed")
             return False
 
         logger.info(f"[DOLOS-BUILD] Using TaskID {task_id} for operation {dedup_info['operation_id']}")
@@ -767,7 +784,7 @@ class Dolos(PayloadType):
 
         new_payload = poll_result.Payloads[0]
         if not new_payload.AgentFileId:
-            logger.error("[DOLOS-BUILD] New payload has no AgentFileId — cannot fetch bytes")
+            logger.error("[DOLOS-BUILD] New payload has no AgentFileId - cannot fetch bytes")
             return False
 
         try:
@@ -790,7 +807,7 @@ class Dolos(PayloadType):
         logger.info(f"[DOLOS-BUILD] Rebuilt inner payload: {new_uuid} ({len(new_bytes):,} bytes)")
 
         await self._step("Rebuilding",
-            f"✅ Regenerated {inner_payload.PayloadType} payload ({len(new_bytes):,} bytes) — now wrapping new UUID",
+            f"✅ Regenerated {inner_payload.PayloadType} payload ({len(new_bytes):,} bytes) - now wrapping new UUID",
             True)
         return True
 

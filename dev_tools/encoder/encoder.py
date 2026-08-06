@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Dolos Encoder v2.4 — shellcode-to-EXE via C# + csc.exe + embedded resources
+Dolos Encoder v2.4 - shellcode-to-EXE via C# + csc.exe + embedded resources
 
 Creates a standalone x64 Windows PE executable from raw shellcode by:
   1. Writing the shellcode to a .resources file (via a small resgen helper)
   2. Compiling a C# VirtualAlloc runner that loads the payload from the
      embedded resource at runtime, using CreateThread to run the shellcode
      in a native thread (no CLR-managed delegate transition)
-  3. csc.exe embeds the .resources file into the assembly — no metadata
+  3. csc.exe embeds the .resources file into the assembly - no metadata
      heap limits, no string literal size limits
 
 If the input is already a PE executable (MZ header), it is passed through
@@ -89,7 +89,7 @@ def detect_arch(data):
 
     For .NET assemblies compiled with /platform:x64, the native stub has machine=0x8664.
     For AnyCPU assemblies, the native stub has machine=0x14C (i386) but runs as 64-bit
-    on 64-bit Windows. We trust the machine field — it's accurate for our csc.exe output.
+    on 64-bit Windows. We trust the machine field - it's accurate for our csc.exe output.
     """
     if not is_pe(data) or len(data) < 0x44:
         return "unknown"
@@ -289,7 +289,7 @@ class R
 
 
 def generate_runner_cs():
-    """Return the C# runner source code (v2.4 — GetManifestResourceStream approach)."""
+    """Return the C# runner source code (v2.4 - GetManifestResourceStream approach)."""
     return RUNNER_CS
 
 
@@ -380,7 +380,7 @@ def main():
     # ── PE pass-through ──
 
     if is_pe(input_data):
-        log("info", "PE/EXE detected — passing through as-is")
+        log("info", "PE/EXE detected - passing through as-is")
         arch = detect_arch(input_data)
         try:
             shutil.copy2(input_path, output_path)
@@ -478,7 +478,7 @@ def main():
         arch = detect_arch(f.read(0x100))
     if arch == "unknown":
         arch = "AMD64"
-        log("info", "PE arch detection returned unknown — defaulting to AMD64 (compiled /platform:x64)")
+        log("info", "PE arch detection returned unknown - defaulting to AMD64 (compiled /platform:x64)")
 
     log("success", "Output: {} ({} bytes, {})".format(output_path, output_size, arch))
     log(

@@ -25,7 +25,7 @@ echo ""
 
 # ── Check for conflicting local debug process ──
 if ps aux 2>/dev/null | grep -v grep | grep -q 'python3.*Payload_Type/dolos/main.py'; then
-    warn "Local debug process is running — container and local debug cannot both use Dolos queues."
+    warn "Local debug process is running - container and local debug cannot both use Dolos queues."
     echo "  Stop local debug first: bash dev_tools/local/debug.sh --stop"
     echo ""
 fi
@@ -59,7 +59,7 @@ fi
 echo ""
 echo "[3] Icon loading"
 if docker logs dolos 2>&1 | grep -q "failed to read agent icon"; then
-    fail "Icon failed to load — FileNotFoundError in logs"
+    fail "Icon failed to load - FileNotFoundError in logs"
 else
     ok "No icon errors in logs"
 fi

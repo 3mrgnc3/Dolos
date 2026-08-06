@@ -1,4 +1,4 @@
-"""Hasura GraphQL client for Dolos — queries Mythic's database directly."""
+"""Hasura GraphQL client for Dolos - queries Mythic's database directly."""
 
 import json
 import logging
@@ -41,7 +41,7 @@ class HasuraClient:
     def query(self, query_str: str, variables: dict | None = None) -> dict | None:
         """Execute a GraphQL query. Returns the 'data' dict or None on error."""
         if not self.secret:
-            logger.warning("[DOLOS-HASURA] HASURA_SECRET not set — skipping query")
+            logger.warning("[DOLOS-HASURA] HASURA_SECRET not set - skipping query")
             return None
 
         payload = json.dumps({"query": query_str, "variables": variables or {}}).encode()
@@ -90,7 +90,7 @@ class HasuraClient:
         )
         if not data or not data.get("payload"):
             logger.info(f"[DOLOS-BUILD] Inner payload {inner_uuid} (id={inner_id}) "
-                        "has no existing Dolos builds — proceeding")
+                        "has no existing Dolos builds - proceeding")
             return None
 
         wrapper = data["payload"][0]

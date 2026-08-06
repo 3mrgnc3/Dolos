@@ -21,19 +21,19 @@ running v0.5.1 or later.
 **Symptom:** Build completes but progress bubbles don't animate in the UI.
 
 **Possible causes:**
-1. **Browser notifications snoozed** — Check your browser's notification settings
-2. **UI refresh delay** — Navigate away from the payload page and back to see updated step status
+1. **Browser notifications snoozed** - Check your browser's notification settings
+2. **UI refresh delay** - Navigate away from the payload page and back to see updated step status
 
 ### SSH Connection Failed
 
 **Symptom:** Build step shows ❌ for SSH connectivity.
 
 **Possible causes:**
-1. **Wrong credentials** — Check the `ssh_server` section in the encoder profile
-2. **Wrong host/port** — Verify `ssh_server.host` and `ssh_server.port` match your server
-3. **Key auth failure** — If `keys.enabled` is true, ensure `keys.path` points to a valid
+1. **Wrong credentials** - Check the `ssh_server` section in the encoder profile
+2. **Wrong host/port** - Verify `ssh_server.host` and `ssh_server.port` match your server
+3. **Key auth failure** - If `keys.enabled` is true, ensure `keys.path` points to a valid
    private key file (relative to the profile JSON). The key content is loaded at startup.
-4. **Network unreachable** — From the container, can you reach the SSH server?
+4. **Network unreachable** - From the container, can you reach the SSH server?
    ```
    docker exec dolos python3 -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('192.168.1.100', 22)); print('OK')"
    ```
@@ -43,9 +43,9 @@ running v0.5.1 or later.
 ### Container Logs
 
 The Dolos container writes two types of logs:
-1. **`docker logs dolos`** — Only CRITICAL severity (build start/end, hard errors). This is
+1. **`docker logs dolos`** - Only CRITICAL severity (build start/end, hard errors). This is
    what mythic_container's root logger passes through.
-2. **File logs at `/tmp/dolos/dolos.log`** — DEBUG and above. All SSH/SFTP events, encoder
+2. **File logs at `/tmp/dolos/dolos.log`** - DEBUG and above. All SSH/SFTP events, encoder
    output, connection details. Rotating (50MB max, 3 backups).
 
 To access file logs: `docker exec dolos cat /tmp/dolos/dolos.log`
@@ -59,9 +59,9 @@ If file logs are not appearing, check that `/tmp/dolos/` is writable inside the 
 **Symptom:** SSH connects but auth fails (❌ for password auth).
 
 **Causes and fixes:**
-1. **Wrong password** — Check `ssh_server.password` in the encoder profile
-2. **Wrong username** — Check `ssh_server.username` in the encoder profile
-3. **Password auth disabled on server** — Enable `PasswordAuthentication yes` in
+1. **Wrong password** - Check `ssh_server.password` in the encoder profile
+2. **Wrong username** - Check `ssh_server.username` in the encoder profile
+3. **Password auth disabled on server** - Enable `PasswordAuthentication yes` in
    `sshd_config` and restart SSH, or use key auth instead
 
 ### SFTP Write Test Failed
@@ -69,10 +69,10 @@ If file logs are not appearing, check that `/tmp/dolos/` is writable inside the 
 **Symptom:** SSH connects and authenticates, but file upload fails.
 
 **Causes and fixes:**
-1. **Permission denied on remote directory** — The SSH user needs write access to
+1. **Permission denied on remote directory** - The SSH user needs write access to
    the temp directory (`C:\Windows\Temp` on Windows, `/tmp` on Linux)
-2. **Disk full** — Check available space on the remote server
-3. **SFTP subsystem disabled** — Some servers disable SFTP. Check `sshd_config`:
+2. **Disk full** - Check available space on the remote server
+3. **SFTP subsystem disabled** - Some servers disable SFTP. Check `sshd_config`:
    ```
    Subsystem sftp /usr/lib/openssh/sftp-server
    ```
@@ -107,7 +107,7 @@ For the built-in C# cradle encoder:
 **Symptom:** Build step shows `Fail String detected: ENCODING_FAILED` or non-zero exit code.
 
 **Debug steps:**
-1. Download the `.session.json` file from the build's Files tab — it contains the
+1. Download the `.session.json` file from the build's Files tab - it contains the
    full timestamped log with every stdout/stderr line
 2. Check the exact command that was run (look for `phase: "processing", level: "CMD"` events)
 3. SSH to the remote server and run the encoder command manually
@@ -142,7 +142,7 @@ After editing profiles, reinstall the container for changes to take effect.
 **Symptom:** The Create Wrapper dialog doesn't show a C2 profile selection step.
 
 **This is correct behavior.** Dolos is a wrapper payload type. The wrapped payload
-already has its C2 profile embedded — Dolos just transforms the payload file.
+already has its C2 profile embedded - Dolos just transforms the payload file.
 No C2 selection is needed.
 
 ### Container Won't Start
@@ -179,7 +179,7 @@ bash /home/mrgnc/MythicC2/Dolos/dev_tools/remote/full_uninstall.sh
 ./mythic-cli install folder ../Dolos
 ```
 
-**Important:** Always do a full uninstall + reinstall. Do not just restart —
+**Important:** Always do a full uninstall + reinstall. Do not just restart -
 Docker image layer caching can cause stale code to persist.
 
 ### How to Update Encoder Profiles

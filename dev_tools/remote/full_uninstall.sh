@@ -8,7 +8,7 @@
 # mythic-cli uninstall can't delete those (permission denied), which blocks the
 # whole uninstall and causes an infinite loop on reinstall. We clean them first
 # by mounting each parent dir into an alpine container and deleting __pycache__
-# from inside — this removes the directory itself, not just its contents.
+# from inside - this removes the directory itself, not just its contents.
 #
 # After that, mythic-cli uninstall handles everything else.
 #

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shellcode test loader — reads a .bin file and executes it directly in memory.
+Shellcode test loader - reads a .bin file and executes it directly in memory.
 
 No encoding, no modification. Just:
   1. Read raw bytes
@@ -89,14 +89,14 @@ def main():
         kernel32.VirtualFree(mem, 0, MEM_RELEASE)
         sys.exit(1)
 
-    print("[*] Thread created (TID: {}) — shellcode executing...".format(tid.value))
+    print("[*] Thread created (TID: {}) - shellcode executing...".format(tid.value))
 
     # Wait with timeout (milliseconds)
     timeout_ms = timeout_sec * 1000
     result = kernel32.WaitForSingleObject(handle, timeout_ms)
 
     if result == WAIT_TIMEOUT:
-        print("[+] Thread still running after {} seconds (good — shellcode is alive)".format(timeout_sec))
+        print("[+] Thread still running after {} seconds (good - shellcode is alive)".format(timeout_sec))
         exit_code = ctypes.wintypes.DWORD(0)
         kernel32.GetExitCodeThread(handle, ctypes.byref(exit_code))
         print("[+] Thread exit code (STILL_ACTIVE=259): {}".format(exit_code.value))
@@ -107,7 +107,7 @@ def main():
     else:
         print("[?] WaitForSingleObject returned: {}".format(result))
 
-    # Don't kill the thread — let it keep running in the background
+    # Don't kill the thread - let it keep running in the background
     # The process will exit after this, killing the thread
     print("[*] Done")
 

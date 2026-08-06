@@ -2,14 +2,14 @@
 
 Deploy these to `C:\tools\` on the Windows remote server.
 
-## encoder.py (C# cradle — primary shellcode→EXE encoder)
+## encoder.py (C# cradle - primary shellcode→EXE encoder)
 
-**Version: v2.3** — Uses CreateThread instead of delegate invocation.
+**Version: v2.3** - Uses CreateThread instead of delegate invocation.
 
 Takes raw shellcode and produces a standalone x64 Windows PE executable using C# + csc.exe.
 
 - Embeds shellcode via `.resources` (handles payloads >1MB)
-- Uses `CreateThread` to run shellcode in a native thread (v2.3 fix — avoids CLR delegate interference)
+- Uses `CreateThread` to run shellcode in a native thread (v2.3 fix - avoids CLR delegate interference)
 - PE pass-through: if input is already a PE (MZ header), copies unchanged
 - Outputs `ENCODING_SUCCESS:<input_size>:<output_size>:<type>` or `ENCODING_FAILED:<reason>`
 - Validated with ~11MB Merlin shellcode: produces working EXE, shellcode executes via CreateThread

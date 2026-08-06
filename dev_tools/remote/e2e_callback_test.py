@@ -212,9 +212,9 @@ if callbacks:
     print(f"  Found {len(callbacks)} callback(s)!")
     for cb in callbacks:
         print(f"    Callback id={cb['id']}: {cb.get('ip', '?')} ({cb.get('host', '?')}) - {cb.get('description', '')}")
-    print("\n✅ END-TO-END TEST PASSED — callback received!")
+    print("\n✅ END-TO-END TEST PASSED - callback received!")
 else:
-    # Dolos is a wrapper — the callback comes from the wrapped agent (Apollo), not Dolos
+    # Dolos is a wrapper - the callback comes from the wrapped agent (Apollo), not Dolos
     # Check for ANY recent callbacks
     result = hasura(
         '{ callback(limit:5, order_by:{id:desc}) { id agent_callback_id host ip description payload { uuid payloadtype { name } } } }'
@@ -225,15 +225,15 @@ else:
     if all_callbacks:
         for cb in all_callbacks:
             pt = cb.get("payload", {}).get("payloadtype", {}).get("name", "?")
-            print(f"    {pt} callback id={cb['id']}: {cb.get('ip', '?')} ({cb.get('host', '?')}) — {cb.get('description', '')}")
+            print(f"    {pt} callback id={cb['id']}: {cb.get('ip', '?')} ({cb.get('host', '?')}) - {cb.get('description', '')}")
 
     # The wrapped payload (e.g. Apollo) should callback, not Dolos
     # Check if there's a new callback since we started
-    print(f"\n  Note: Dolos is a WRAPPER — the wrapped agent (Apollo) should callback, not Dolos.")
+    print(f"\n  Note: Dolos is a WRAPPER - the wrapped agent (Apollo) should callback, not Dolos.")
     print(f"  Check the Mythic UI for new Apollo callbacks.")
     print(f"\n  URL: {MYTHIC_URL}/new/create/Callbacks")
 
-# Cleanup — remove from remote
+# Cleanup - remove from remote
 print(f"\n[6] Cleaning up remote file...")
 try:
     sftp.remove(remote_path)

@@ -1,6 +1,6 @@
 # Dolos container .dockerignore
 # Build context: Payload_Type/dolos/ → InstalledServices/dolos/
-# The Dockerfile has no COPY — code is bind-mounted. This file keeps
+# The Dockerfile has no COPY - code is bind-mounted. This file keeps
 # the build context lean and documents what doesn't belong in the container.
 
 # Python bytecode
@@ -22,10 +22,10 @@ __pycache__/
 # Venv
 .venv/
 
-# Dev scripts — NOT needed in the container
+# Dev scripts - NOT needed in the container
 dev_tools/
 
-# Local-only config — contains RabbitMQ passwords, DO NOT ship
+# Local-only config - contains RabbitMQ passwords, DO NOT ship
 rabbitmq_config.local.json
 rabbitmq_config.local.template.json
 

@@ -7,7 +7,7 @@ weight = 20
 
 When you create a Dolos wrapper, you'll see these parameters organized by group.
 The **wrapped payload is selected separately** via Mythic's native "Create Wrapper"
-flow — it's not a build parameter.
+flow - it's not a build parameter.
 
 <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:600px;">
   <rect width="600" height="380" rx="12" fill="#1a1d23" stroke="#2a2f3a" stroke-width="1"/>
@@ -20,30 +20,30 @@ flow — it's not a build parameter.
 
   <!-- No C2 Profile section -->
   <rect x="30" y="105" width="540" height="30" rx="6" fill="#2a1e1e" stroke="#666" stroke-width="1" stroke-dasharray="4"/>
-  <text x="300" y="125" font-family="system-ui" font-size="11" fill="#666" text-anchor="middle">✕ No C2 Profile selection — C2 is in the wrapped payload</text>
+  <text x="300" y="125" font-family="system-ui" font-size="11" fill="#666" text-anchor="middle">✕ No C2 Profile selection - C2 is in the wrapped payload</text>
 
   <!-- Build params -->
   <rect x="30" y="150" width="540" height="40" rx="6" fill="#252d3d" stroke="#4a9eff" stroke-width="1"/>
   <text x="50" y="168" font-family="system-ui" font-size="12" fill="#4a9eff" font-weight="bold">Encoder</text>
-  <text x="200" y="168" font-family="system-ui" font-size="12" fill="#e0e0e0">ChooseOne — PyEncoder_v1 ▾</text>
+  <text x="200" y="168" font-family="system-ui" font-size="12" fill="#e0e0e0">ChooseOne - PyEncoder_v1 ▾</text>
   <text x="50" y="183" font-family="system-ui" font-size="10" fill="#888">From configs/encoders/ encoder_profile.json</text>
 
   <rect x="30" y="200" width="540" height="35" rx="6" fill="#252d3d" stroke="#a855f7" stroke-width="1"/>
   <text x="50" y="218" font-family="system-ui" font-size="12" fill="#a855f7" font-weight="bold">Bypass Profile</text>
-  <text x="200" y="218" font-family="system-ui" font-size="12" fill="#e0e0e0">ChooseOne — (None) ▾</text>
+  <text x="200" y="218" font-family="system-ui" font-size="12" fill="#e0e0e0">ChooseOne - (None) ▾</text>
   <text x="50" y="228" font-family="system-ui" font-size="9" fill="#888">Only shown for encoders with bypass profiles</text>
 
   <rect x="30" y="245" width="540" height="30" rx="6" fill="#252d3d" stroke="#4a9eff" stroke-width="1"/>
   <text x="50" y="265" font-family="system-ui" font-size="12" fill="#4a9eff" font-weight="bold">Timeout</text>
-  <text x="200" y="265" font-family="system-ui" font-size="12" fill="#e0e0e0">Number — 0 (use profile default)</text>
+  <text x="200" y="265" font-family="system-ui" font-size="12" fill="#e0e0e0">Number - 0 (use profile default)</text>
 
   <rect x="30" y="285" width="540" height="30" rx="6" fill="#252d3d" stroke="#4a9eff" stroke-width="1"/>
   <text x="50" y="305" font-family="system-ui" font-size="12" fill="#4a9eff" font-weight="bold">Success String</text>
-  <text x="200" y="305" font-family="system-ui" font-size="12" fill="#e0e0e0">String — ENCODING_SUCCESS</text>
+  <text x="200" y="305" font-family="system-ui" font-size="12" fill="#e0e0e0">String - ENCODING_SUCCESS</text>
 
   <rect x="30" y="325" width="540" height="30" rx="6" fill="#252d3d" stroke="#4a9eff" stroke-width="1"/>
   <text x="50" y="345" font-family="system-ui" font-size="12" fill="#4a9eff" font-weight="bold">Fail String</text>
-  <text x="200" y="345" font-family="system-ui" font-size="12" fill="#e0e0e0">String — ENCODING_FAILED</text>
+  <text x="200" y="345" font-family="system-ui" font-size="12" fill="#e0e0e0">String - ENCODING_FAILED</text>
 </svg>
 
 ### Remote Command
@@ -82,7 +82,7 @@ is marked as failed regardless of exit code.
 
 ### No SSH Input Fields
 
-SSH configuration is read from encoder profiles — there are no SSH input fields
+SSH configuration is read from encoder profiles - there are no SSH input fields
 in the build dialog. Each encoder profile specifies its own server, credentials,
 and command. The build steps automatically verify:
 

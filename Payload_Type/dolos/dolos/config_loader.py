@@ -1,4 +1,4 @@
-"""Dolos Config Loader — loads encoder profiles from filesystem.
+"""Dolos Config Loader - loads encoder profiles from filesystem.
 
 Walks DOLOS_CONFIG/encoders/, parses encoder_profile.json files,
 resolves relative paths (SSH keys, bypass profiles), validates,
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration directory ──
 # Docker-compose sets unset env vars to "" (not undefined), so use `or`
-# instead of a default value — per project rule #9 in CLAUDE.md.
+# instead of a default value - per project rule #9 in CLAUDE.md.
 CONFIG_DIR = os.environ.get("DOLOS_CONFIG") or "/Mythic/configs"
 
 
@@ -97,7 +97,7 @@ def load_profiles() -> list[EncoderProfile]:
     if not profile_files:
         logger.critical(
             "[DOLOS-CONFIG] No encoder_profile.json files found in %s "
-            "— builds will fail until profiles are configured",
+            "- builds will fail until profiles are configured",
             encoders_dir,
         )
         _profiles = []
@@ -298,7 +298,7 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
 def _scaffold_sample_config():
     """Auto-create a sample config directory with boilerplate profile.
 
-    Idempotent — never overwrites existing files.
+    Idempotent - never overwrites existing files.
     """
     config_dir = os.path.abspath(CONFIG_DIR)
     encoders_dir = os.path.join(config_dir, "encoders", "pyencoder")

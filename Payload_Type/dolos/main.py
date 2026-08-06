@@ -1,6 +1,6 @@
 """Dolos service entry point.
 
-A Mythic wrapper payload type — encoder choices loaded from configs/ directory
+A Mythic wrapper payload type - encoder choices loaded from configs/ directory
 (encoder_profile.json files) instead of environment variables.
 
 Local debugging:
@@ -58,6 +58,6 @@ else:
         print(f"[DOLOS]   {p.label} [{status}{bypass_info}]")
 
 import mythic_container
-import dolos  # noqa: F401 — triggers __init__.py which imports builder.py
+import dolos  # noqa: F401 - triggers __init__.py which imports builder.py
 
 mythic_container.mythic_service.start_and_run_forever()

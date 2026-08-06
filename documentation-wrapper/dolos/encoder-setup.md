@@ -49,17 +49,17 @@ that converts raw shellcode into standalone Windows PE executables using C# and 
 Previous versions used a hand-rolled PE32+ builder that produced EXEs Windows rejected.
 The C# approach uses Microsoft's own compiler, guaranteeing valid PE output:
 
-- **Zero additional installs** — `csc.exe` ships with Windows (.NET Framework 4)
-- **Guaranteed valid PE** — Microsoft's own compiler produces the output
-- **Large payload support** — Uses `.resources` embedding (not base64 string literals)
-- **x64 output** — `/platform:x64` for 64-bit shellcode
-- **CreateThread execution** — v2.3 uses `CreateThread` instead of `GetDelegateForFunctionPointer`
+- **Zero additional installs** - `csc.exe` ships with Windows (.NET Framework 4)
+- **Guaranteed valid PE** - Microsoft's own compiler produces the output
+- **Large payload support** - Uses `.resources` embedding (not base64 string literals)
+- **x64 output** - `/platform:x64` for 64-bit shellcode
+- **CreateThread execution** - v2.3 uses `CreateThread` instead of `GetDelegateForFunctionPointer`
 
 ### Requirements on Remote Server
 
-1. **Python** — `py.exe` (Python launcher) or `python.exe` in PATH
-2. **csc.exe** — Available at `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
-3. **.NET Framework 4.x** — Required on the target machine (standard on Windows 10/11)
+1. **Python** - `py.exe` (Python launcher) or `python.exe` in PATH
+2. **csc.exe** - Available at `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
+3. **.NET Framework 4.x** - Required on the target machine (standard on Windows 10/11)
 
 ### Deployment
 
@@ -229,8 +229,8 @@ configs/encoders/balliskit/
 
 Dolos checks for success and failure strings in the encoder's stdout:
 
-- **Success String** (default: `ENCODING_SUCCESS`) — If found in stdout, encoding is confirmed
-- **Fail String** (default: `ENCODING_FAILED`) — If found in stdout/stderr, encoding is confirmed failed
+- **Success String** (default: `ENCODING_SUCCESS`) - If found in stdout, encoding is confirmed
+- **Fail String** (default: `ENCODING_FAILED`) - If found in stdout/stderr, encoding is confirmed failed
 
 Your encoder should print one of these to stdout:
 

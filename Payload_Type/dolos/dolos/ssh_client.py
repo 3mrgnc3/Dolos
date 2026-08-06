@@ -3,7 +3,7 @@
 Handles:
 - SSH connection using env-var-only config (no build-param SSH fields)
 - Key auth (ed25519/RSA/ECDSA) via DOLOS_SSH_PRIVATE_KEY, or password auth,
-  or both — at least one required
+  or both - at least one required
 - OS auto-detection (Windows vs Linux) for temp directory paths
 - Random workdir generation per build
 - SFTP directory creation, upload, download, and cleanup
@@ -54,7 +54,7 @@ def _setup_file_logging():
     captures DEBUG and above. The handler rotates at DOLOS_LOG_MAX_MB MB
     and keeps DOLOS_LOG_MAX_BACKUPS backup files.
 
-    This is safe to call even if the directory isn't writable — it just
+    This is safe to call even if the directory isn't writable - it just
     won't add the handler and logs a warning.
     """
     dolos_logger = logging.getLogger("dolos")
@@ -66,7 +66,7 @@ def _setup_file_logging():
     try:
         os.makedirs(DOLOS_LOG_DIR, exist_ok=True)
     except OSError:
-        # Can't create log dir (e.g. read-only filesystem) — skip file logging
+        # Can't create log dir (e.g. read-only filesystem) - skip file logging
         logger.warning("Cannot create log directory %s, file logging disabled", DOLOS_LOG_DIR)
         return
 
@@ -105,7 +105,7 @@ DEFAULT_TIMEOUT = 300
 
 
 # ---------------------------------------------------------------------------
-# SSH Session Log — captures every SSH/SFTP event with timestamps
+# SSH Session Log - captures every SSH/SFTP event with timestamps
 # ---------------------------------------------------------------------------
 
 class SSHSessionLog:
@@ -117,10 +117,10 @@ class SSHSessionLog:
     success/failure detection, and cleanup operations.
 
     Produces two outputs:
-    1. JSON artifact — full, structured, machine-readable. Stored via
+    1. JSON artifact - full, structured, machine-readable. Stored via
        SendMythicRPCFileCreate as <payload_name>.session.json. Searchable via
        GraphQL. Forensically linked to the payload UUID.
-    2. Human-readable summary — compact text with key events and final status.
+    2. Human-readable summary - compact text with key events and final status.
        Stored in resp.build_message.
 
     Verbosity is encoder-dependent: whatever the encoder outputs is captured.
@@ -261,7 +261,7 @@ class SSHSessionLog:
                    input_size: int, output_size: int, magic_type: str,
                    success_string: str = "", failure_string: str = ""):
         self._add("validating", "INFO",
-                  f"Validation: {status} — {detail}",
+                  f"Validation: {status} - {detail}",
                   status=status, detail=detail, exit_code=exit_code,
                   input_size=input_size, output_size=output_size,
                   magic_type=magic_type,
@@ -343,7 +343,7 @@ class SSHSessionLog:
         # Validation
         val_events = [e for e in self.events if e["phase"] == "validating"]
         if val_events:
-            lines.append(f"Status: {val_events[-1].get('status', '?')} — "
+            lines.append(f"Status: {val_events[-1].get('status', '?')} - "
                          f"{val_events[-1].get('detail', '?')}")
 
         # Errors/warnings summary
@@ -391,7 +391,7 @@ def get_ssh_config_from_profile(profile) -> dict:
 def _get_env_config() -> dict:
     """Read SSH configuration from environment variables.
 
-    Legacy fallback — used for local debug / testing only.
+    Legacy fallback - used for local debug / testing only.
     All production builds use get_ssh_config_from_profile() instead.
 
     Returns dict with keys: host, port, username, password, private_key,
@@ -645,7 +645,7 @@ def resolve_placeholders(command: str, workdir_cmd: str,
 
     workdir_cmd: the workdir path formatted for the remote shell
                  (backslashes on Windows, forward slashes on Linux).
-    Placeholders {input}, {fileN}, {output} resolve to bare filenames —
+    Placeholders {input}, {fileN}, {output} resolve to bare filenames -
     the operator controls path construction via {workdir} in their command.
     """
     result = command
@@ -750,7 +750,7 @@ async def transfer_and_execute(
     local_dir = None
 
     try:
-        # Connect — key auth preferred, password as fallback
+        # Connect - key auth preferred, password as fallback
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 

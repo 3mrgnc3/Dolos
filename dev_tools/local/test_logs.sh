@@ -35,7 +35,7 @@ os.environ['DOLOS_LOG_MAX_BACKUPS'] = '2'
 # Add the Dolos source to Python path
 sys.path.insert(0, '$D/Payload_Type/dolos')
 
-# Import the modules — this triggers _setup_file_logging()
+# Import the modules - this triggers _setup_file_logging()
 from dolos.ssh_client import SSHSessionLog
 
 # Create a session log and add events

@@ -3,13 +3,13 @@
     "label": "Donut_x64",
     "command": "C:\\tools\\donut.exe -f 1 -i {workdir}\\{input} -o {workdir}\\{output}",
     "ssh_server": {
-        "host": "172.28.0.4",
+        "host": "172.28.0.3",
         "port": 22,
         "username": "mrgnc",
         "password": "",
         "keys": {
             "enabled": true,
-            "path": "../../ssh_keys/ubuntuSVR01/ssh_key"
+            "path": "../../ssh_keys/tiny11/id_ed25519"
         }
     },
     "timeout": 300,

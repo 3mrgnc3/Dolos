@@ -18,7 +18,7 @@ tools/
 screenshots/
 
 ## Dev tooling
-# dev_tools/  # now tracked — test harness lives here
+# dev_tools/  # now tracked - test harness lives here
 mythic-mcp-conf.json
 .mcp.json
 .claude/
@@ -40,7 +40,7 @@ Payload_Type/dolos/__pycache__/
 ## Secrets
 .env
 
-## Local debug config (gitignored — use template)
+## Local debug config (gitignored - use template)
 rabbitmq_config.local.json
 
 ## Jupyter notebooks (testing only)
@@ -52,9 +52,9 @@ rabbitmq_config.local.json
 .venv/
 dev_examples/
 
-## Config secrets — never track private keys or operator-modified profiles
+## Config secrets - never track private keys or operator-modified profiles
 ## The boilerplate configs in Payload_Type/dolos/configs/ ARE tracked (sample only).
-## Operators put real keys/profiles on the server — those are never committed.
+## Operators put real keys/profiles on the server - those are never committed.
 Payload_Type/dolos/configs/encoders/*/id_*
 Payload_Type/dolos/configs/encoders/*/ssh_key
 Payload_Type/dolos/configs/encoders/*/*/id_*

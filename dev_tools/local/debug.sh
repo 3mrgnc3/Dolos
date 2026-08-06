@@ -106,7 +106,7 @@ run_debug() {
 
     # ── Stop Docker container if running (they compete for RabbitMQ) ──
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^dolos$'; then
-        warn "Docker container 'dolos' is running — it will compete for RabbitMQ queues!"
+        warn "Docker container 'dolos' is running - it will compete for RabbitMQ queues!"
         echo ""
         read -p "Stop the Docker container? [Y/n] " -r
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then

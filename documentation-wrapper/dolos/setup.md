@@ -87,9 +87,9 @@ SSH key files are stored in `configs/ssh_keys/` (or alongside the encoder profil
 The `keys.path` field is resolved **relative to the encoder_profile.json file**.
 
 Examples:
-- `"path": "../../ssh_keys/tiny11/id_ed25519"` — two directories up, into shared SSH keys
-- `"path": "../id_ed25519"` — key file in the same parent directory as the encoder profile
-- `"path": ""` — no key file (use password auth only)
+- `"path": "../../ssh_keys/tiny11/id_ed25519"` - two directories up, into shared SSH keys
+- `"path": "../id_ed25519"` - key file in the same parent directory as the encoder profile
+- `"path": ""` - no key file (use password auth only)
 
 At least one auth method must be configured: password, key, or both.
 
@@ -192,6 +192,6 @@ Only infrastructure-level env vars remain (all SSH and encoder config is in file
 | `DOLOS_LOG_DIR` | No | `/tmp/dolos` | Log file directory |
 | `DOLOS_LOG_MAX_MB` | No | `50` | Max log file size in MB |
 | `DOLOS_LOG_MAX_BACKUPS` | No | `3` | Number of rotated log files |
-| `HASURA_SECRET` | Yes | — | Hasura admin secret |
+| `HASURA_SECRET` | Yes | - | Hasura admin secret |
 | `HASURA_HOST` | No | `mythic_graphql` | Hasura hostname |
 | `HASURA_PORT` | No | `8080` | Hasura port |
