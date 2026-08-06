@@ -1,12 +1,8 @@
-<!-- <div align="center"> -->
-
-
 
 # <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos - The Craftsman of Lies 
 
 **Mythic wrapper payload type - encode shellcode on your own infrastructure**
 
-</div>
 
 Dolos takes an existing built payload (Apollo, Merlin, etc.) and wraps it through an external SSH server that runs your encoder. The encoded result comes back to Mythic. **It does no encoding itself** - all processing happens on hardware you control.
 
