@@ -35,7 +35,7 @@ echo ""
 
 info "[1/4] Uninstalling dolos..."
 cd "$MYTHIC_DIR" || fail "Mythic dir not found: $MYTHIC_DIR"
-./mythic-cli uninstall dolos 2>&1 || warn "mythic-cli uninstall returned non-zero (may be ok)"
+sudo ./mythic-cli uninstall dolos 2>&1 || warn "mythic-cli uninstall returned non-zero (may be ok)"
 
 # ── Step 2: Clean DB ──
 
@@ -45,7 +45,7 @@ bash "$DOLOS_DIR/dev_tools/remote/full_uninstall.sh" 2>&1 || warn "full_uninstal
 # ── Step 3: Reinstall ──
 
 info "[3/4] Installing from $DOLOS_DIR..."
-./mythic-cli install folder "$DOLOS_DIR" 2>&1 || fail "mythic-cli install failed"
+sudo ./mythic-cli install folder "$DOLOS_DIR"
 
 # ── Step 4: Verify ──
 

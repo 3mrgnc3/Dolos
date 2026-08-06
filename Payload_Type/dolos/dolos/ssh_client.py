@@ -41,9 +41,9 @@ _VERSION = json.loads(_CAPABILITIES_PATH.read_text())["agent_version"]
 # is captured to disk (with size limits and rotation) while only
 # CRITICAL messages appear in docker logs.
 
-DOLOS_LOG_DIR = os.environ.get("DOLOS_LOG_DIR", "/tmp/dolos")
-DOLOS_LOG_MAX_MB = int(os.environ.get("DOLOS_LOG_MAX_MB", "50"))
-DOLOS_LOG_MAX_BACKUPS = int(os.environ.get("DOLOS_LOG_MAX_BACKUPS", "3"))
+DOLOS_LOG_DIR = os.environ.get("DOLOS_LOG_DIR") or "/tmp/dolos"
+DOLOS_LOG_MAX_MB = int(os.environ.get("DOLOS_LOG_MAX_MB") or "50")
+DOLOS_LOG_MAX_BACKUPS = int(os.environ.get("DOLOS_LOG_MAX_BACKUPS") or "3")
 
 
 def _setup_file_logging():
