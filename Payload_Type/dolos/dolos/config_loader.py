@@ -514,6 +514,80 @@ def get_bypass_stem_for_display(label: str, display_name: str) -> Optional[str]:
     return None
 
 
+def force_reload() -> list[EncoderProfile]:
+    """Force a full reload of profiles from disk, bypassing cache.
+
+    Used after writing uploaded profiles to disk so they become
+    immediately available for the current build.
+    """
+    global _profiles, _profile_mtimes
+    _profiles = None
+    _profile_mtimes = {}
+    return load_profiles()
+
+
+def get_ssh_key_dirs() -> list[str]:
+    """Return list of SSH key directory names under configs/ssh_keys/.
+
+    Each directory name can be used as a reference in encoder profiles
+    (e.g. '../../ssh_keys/tiny11/id_ed25519').
+    """
+    ssh_dir = os.path.join(CONFIG_DIR, "ssh_keys")
+    if not os.path.isdir(ssh_dir):
+        return []
+    return sorted(
+        d for d in os.listdir(ssh_dir)
+        if os.path.isdir(os.path.join(ssh_dir, d))
+    )
+
+
+def write_uploaded_file(relative_path: str, content: bytes) -> str:
+    """Write an uploaded file to the configs directory.
+
+    Creates parent directories as needed. Returns the absolute path
+    of the written file.
+
+    Args:
+        relative_path: Path relative to CONFIG_DIR, e.g. "encoders/myencoder/encoder_profile.json"
+        content: Raw file bytes to write
+
+    Returns:
+        Absolute path of the written file
+    """
+    abs_path = os.path.join(CONFIG_DIR, relative_path)
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    with open(abs_path, "wb") as f:
+        f.write(content)
+    logger.critical("[DOLOS-CONFIG] Wrote uploaded file: %s (%d bytes)", abs_path, len(content))
+    return abs_path
+
+
+def validate_encoder_profile_json(data: dict) -> list[str]:
+    """Validate an uploaded encoder profile JSON dict.
+
+    Returns a list of error messages. Empty list means valid.
+    Does NOT check SSH key readability (keys may not be uploaded yet).
+    """
+    errors = []
+    if not data.get("label") or not isinstance(data["label"], str):
+        errors.append("'label' is required and must be a string")
+    if not data.get("command") or not isinstance(data["command"], str):
+        errors.append("'command' is required and must be a string")
+    elif "{input}" not in data["command"] or "{output}" not in data["command"]:
+        errors.append("'command' must contain {input} and {output} placeholders")
+    ssh = data.get("ssh_server", {})
+    if not isinstance(ssh, dict):
+        errors.append("'ssh_server' must be an object")
+    else:
+        if not ssh.get("host"):
+            errors.append("'ssh_server.host' is required")
+        if not ssh.get("username"):
+            errors.append("'ssh_server.username' is required")
+        if not ssh.get("password") and not (ssh.get("keys", {}).get("enabled")):
+            errors.append("at least one auth method required: ssh_server.password or ssh_server.keys.enabled")
+    return errors
+
+
 def get_bypass_stems_for(label: str) -> list[str]:
     """Return bypass profile stems for a specific encoder label."""
     profiles = _ensure_loaded()
