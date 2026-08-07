@@ -51,11 +51,29 @@ _CAPABILITIES_PATH = pathlib.Path(__file__).parent.parent / "agent_capabilities.
 _VERSION = json.loads(_CAPABILITIES_PATH.read_text())["agent_version"]
 
 # ---------------------------------------------------------------------------
-# Load encoder choices from config profiles at import time
+# Dynamic query functions for Mythic build parameter dropdowns.
+# These are called by Mythic every time the user opens a dropdown,
+# so they always reflect the latest config on disk (via mtime reload).
 # ---------------------------------------------------------------------------
-_ENCODER_CHOICES = config_loader.get_encoder_choices()
-_BYPASS_CHOICES = config_loader.get_all_bypass_choices()
-_ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
+
+_PLACEHOLDER_CHOICES = ["(loading...)", "(None)"]
+
+async def _encoder_choices_query(msg):
+    """Dynamic query for the Encoder dropdown."""
+    from mythic_container.PayloadBuilder import PTRPCDynamicQueryBuildParameterFunctionMessageResponse
+    choices = config_loader.get_encoder_choices()
+    return PTRPCDynamicQueryBuildParameterFunctionMessageResponse(
+        Success=True, Choices=choices
+    )
+
+
+async def _bypass_choices_query(msg):
+    """Dynamic query for the Bypass Profile dropdown."""
+    from mythic_container.PayloadBuilder import PTRPCDynamicQueryBuildParameterFunctionMessageResponse
+    choices = config_loader.get_all_bypass_choices()
+    return PTRPCDynamicQueryBuildParameterFunctionMessageResponse(
+        Success=True, Choices=choices
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -98,11 +116,13 @@ class Dolos(PayloadType):
             name="Encoder",
             parameter_type=BuildParameterType.ChooseOne,
             description=(
-                "Select an encoder profile. Configured in configs/encoders/ "
-                "directory. Each profile specifies SSH server, command template, "
-                "and optional bypass profiles."
+                "Select an encoder profile. Configured in dolos_profiles/encoders/ "
+                "on the Mythic host. Each profile specifies SSH server, command "
+                "template, and optional bypass profiles. Edit profiles on disk "
+                "and reload takes effect immediately."
             ),
-            choices=_ENCODER_CHOICES,
+            choices=_PLACEHOLDER_CHOICES,
+            dynamic_query_function=_encoder_choices_query,
             group_name="Remote Command",
         ),
         BuildParameter(
@@ -113,15 +133,10 @@ class Dolos(PayloadType):
                 "Only shown when the encoder has bypass profiles configured. "
                 "Choose (None) to skip bypass."
             ),
-            choices=_BYPASS_CHOICES,
+            choices=_PLACEHOLDER_CHOICES,
+            dynamic_query_function=_bypass_choices_query,
             default_value="(None)",
-            hide_conditions=[
-                HideCondition(
-                    name="Encoder",
-                    operand=HideConditionOperand.NotIN,
-                    choices=_ENCODERS_WITH_BYPASS,
-                )
-            ] if _ENCODERS_WITH_BYPASS else [],
+            hide_conditions=[],
             group_name="Remote Command",
         ),
         BuildParameter(
