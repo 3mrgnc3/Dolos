@@ -255,10 +255,10 @@ class Dolos(PayloadType):
             name="Upload New Profile",
             parameter_type=BuildParameterType.Boolean,
             description=(
-                "Toggle ON to reveal file upload fields for adding a new encoder "
-                "profile, bypass profiles, and SSH keys. The uploaded files "
-                "are written to the Dolos configs directory and become available "
-                "immediately. Disable this if you only want to use existing profiles."
+                "Toggle ON to create a new encoder profile. Upload an encoder_profile.json, "
+                "optional bypass profiles, and SSH key. Clicking Create ONLY saves the "
+                "profile - no encoding is performed. After saving, disable this toggle "
+                "and select the new encoder from the dropdown to build with it."
             ),
             default_value=False,
             required=False,
@@ -268,13 +268,12 @@ class Dolos(PayloadType):
             name="New Encoder Name",
             parameter_type=BuildParameterType.String,
             description=(
-                "Directory name for the new encoder profile (e.g. 'my_encoder'). "
-                "This creates configs/encoders/{name}/ and stores the profile there. "
-                "Only alphanumeric, underscores, and hyphens allowed."
+                "Directory name for the new encoder profile (e.g. My New Encoder). "
+                "Spaces are automatically converted to underscores, special characters are stripped."
             ),
             default_value="",
             required=False,
-            verifier_regex=r"^[a-zA-Z0-9_-]+$",
+            verifier_regex=r"^[a-zA-Z0-9_ -]+$",
             group_name="Profile Upload",
             hide_conditions=[
                 HideCondition(
@@ -412,10 +411,17 @@ class Dolos(PayloadType):
                 resp.build_message = "Provide a New Encoder Name when uploading a profile."
                 return resp
 
-            if not re.match(r'^[a-zA-Z0-9_-]+$', new_encoder_name):
-                await self._step("Uploading Profile", f"Invalid encoder name: '{new_encoder_name}'. Use only alphanumeric, underscores, hyphens.", False)
-                resp.build_message = f"Invalid encoder name: '{new_encoder_name}'. Use only alphanumeric, underscores, and hyphens."
+            # Sanitize name: spaces -> underscores, strip non-alphanumeric except _ and -
+            sanitized_name = re.sub(r'\s+', '_', new_encoder_name)
+            sanitized_name = re.sub(r'[^a-zA-Z0-9_-]', '', sanitized_name)
+            sanitized_name = sanitized_name.strip('_-')
+            if not sanitized_name:
+                await self._step("Uploading Profile", f"Encoder name '{new_encoder_name}' has no valid characters", False)
+                resp.build_message = f"Encoder name '{new_encoder_name}' contains no valid characters. Use letters, numbers, underscores, or hyphens."
                 return resp
+            if sanitized_name != new_encoder_name:
+                logger.info("[DOLOS-BUILD] Sanitized encoder name: '%s' -> '%s'", new_encoder_name, sanitized_name)
+                new_encoder_name = sanitized_name
 
             # Check for name collision with existing encoder
             existing_profiles = config_loader.get_encoder_choices()
@@ -565,16 +571,26 @@ class Dolos(PayloadType):
                 except Exception as e:
                     logger.warning("[DOLOS-BUILD] Failed to process SSH key file: %s", e)
 
-            # Force config reload so the new profile is available
+            # Force config reload and Mythic re-sync so the new profile appears in dropdowns
             config_loader.force_reload()
+            _update_build_params()
 
-            # If encoder wasn't explicitly selected, use the newly uploaded one
-            if not encoder_label or encoder_label == "(no profiles configured)":
-                encoder_label = new_encoder_name
-                logger.info("[DOLOS-BUILD] Auto-selected newly uploaded encoder: %s", encoder_label)
+            try:
+                from mythic_container.PayloadBuilder import SendMythicRPCSyncPayloadType
+                sync_result = await SendMythicRPCSyncPayloadType("dolos", [])
+                logger.critical("[DOLOS-BUILD] Mythic re-sync after profile upload: %s", sync_result)
+            except Exception as e:
+                logger.warning("[DOLOS-BUILD] Mythic re-sync after profile upload failed: %s", e)
 
-            await self._step("Uploading Profile", f"Profile '{new_encoder_name}' saved to configs directory", True)
-            logger.critical("[DOLOS-BUILD] Profile upload complete: %s", new_encoder_name)
+            resp.status = BuildStatus.Success
+            resp.build_message = (
+                f"Profile '{new_encoder_name}' saved successfully. "
+                f"Now disable 'Upload New Profile', select '{new_encoder_name}' from the Encoder dropdown, "
+                f"and create a new payload to use this profile."
+            )
+            resp.payload = b""
+            logger.critical("[DOLOS-BUILD] ========== Profile upload complete: %s ==========", new_encoder_name)
+            return resp
 
         # ── Validate: wrapped payload must be present ──
 
