@@ -268,14 +268,13 @@ class Dolos(PayloadType):
             name="New Encoder Name",
             parameter_type=BuildParameterType.String,
             description=(
-                "Directory name for the new encoder profile (e.g. my_encoder). "
-                "This creates configs/encoders/{name}/. "
-                "Only alphanumeric characters, underscores, and hyphens allowed. "
+                "Directory name for the new encoder profile (e.g. My Encoder). "
+                "Spaces are converted to underscores, special characters are stripped. "
                 "Required when Upload New Profile is ON."
             ),
             default_value="",
             required=False,
-            verifier_regex=r"^[a-zA-Z0-9_-]+$",
+            verifier_regex=r"^[a-zA-Z0-9_ -]+$",
             group_name="Profile Upload",
             hide_conditions=[
                 HideCondition(
@@ -420,10 +419,17 @@ class Dolos(PayloadType):
                 resp.build_message = "Provide a New Encoder Name when uploading a profile."
                 return resp
 
-            if not re.match(r'^[a-zA-Z0-9_-]+$', new_encoder_name):
-                await self._step("Uploading Profile", f"Invalid encoder name: '{new_encoder_name}'. Use only alphanumeric, underscores, hyphens.", False)
-                resp.build_message = f"Invalid encoder name: '{new_encoder_name}'. Use only alphanumeric, underscores, and hyphens."
+            # Sanitize: convert spaces to underscores, strip non-alphanumeric except _ and -
+            original_name = new_encoder_name
+            new_encoder_name = re.sub(r'\s+', '_', new_encoder_name)  # spaces -> underscores
+            new_encoder_name = re.sub(r'[^a-zA-Z0-9_-]', '', new_encoder_name)  # strip bad chars
+            new_encoder_name = new_encoder_name.strip('_-')  # no leading/trailing _ or -
+            if not new_encoder_name:
+                await self._step("Uploading Profile", f"Encoder name '{original_name}' has no valid characters after sanitization", False)
+                resp.build_message = f"Encoder name '{original_name}' contains no valid characters. Use letters, numbers, underscores, or hyphens."
                 return resp
+            if new_encoder_name != original_name:
+                logger.info("[DOLOS-BUILD] Sanitized encoder name: '%s' -> '%s'", original_name, new_encoder_name)
 
             if not encoder_json_text:
                 await self._step("Uploading Profile", "Encoder Profile JSON is required", False)
@@ -536,7 +542,10 @@ class Dolos(PayloadType):
             except Exception as e:
                 logger.warning("[DOLOS-BUILD] Mythic re-sync after profile upload failed: %s", e)
 
-            await self._step("Uploading Profile", f"Profile '{new_encoder_name}' saved successfully. Disable 'Upload New Profile' and rebuild to use it.", True)
+            if new_encoder_name != original_name:
+                await self._step("Uploading Profile", f"Profile saved as '{new_encoder_name}' (sanitized from '{original_name}'). Disable 'Upload New Profile' and select it from the Encoder dropdown.", True)
+            else:
+                await self._step("Uploading Profile", f"Profile '{new_encoder_name}' saved successfully. Disable 'Upload New Profile' and select it from the Encoder dropdown.", True)
 
             resp.status = BuildStatus.Success
             resp.build_message = (
