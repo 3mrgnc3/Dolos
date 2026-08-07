@@ -15,6 +15,10 @@
       "HASURA_SECRET=${HASURA_SECRET}",
       "HASURA_HOST=${HASURA_HOST}",
       "HASURA_PORT=${HASURA_PORT}"
+    ],
+    "volumes": [
+      "/home/mrgnc/MythicC2/Mythic/InstalledServices/dolos:/Mythic/",
+      "/home/mrgnc/MythicC2/Mythic/dolos_profiles:/Mythic/configs"
     ]
   }
 }

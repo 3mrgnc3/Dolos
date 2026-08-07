@@ -51,18 +51,51 @@ class EncoderProfile:
 
 # ── Module-level cache ──
 _profiles: Optional[list[EncoderProfile]] = None
+_profile_mtimes: dict[str, float] = {}  # {path: mtime} for auto-reload
 
 
 def _reset_cache():
     """Reset the profile cache. Useful for testing."""
-    global _profiles
+    global _profiles, _profile_mtimes
     _profiles = None
+    _profile_mtimes = {}
+
+
+def _check_mtimes() -> bool:
+    """Check if any profile files have changed since last load.
+
+    Returns True if reload is needed (new files, removed files, or modified files).
+    This enables live config editing: operators can edit files in the
+    bind-mounted dolos_profiles/ directory and changes take effect on
+    the next build without restarting the container.
+    """
+    encoders_dir = os.path.join(CONFIG_DIR, "encoders")
+    current_files = _find_profile_files(encoders_dir)
+    current_mtimes: dict[str, float] = {}
+
+    for f in current_files:
+        try:
+            current_mtimes[f] = os.path.getmtime(f)
+        except OSError:
+            # File disappeared between listing and stat - trigger reload
+            return True
+
+    # New files or removed files
+    if set(current_mtimes.keys()) != set(_profile_mtimes.keys()):
+        return True
+
+    # Modified files
+    for path, mtime in current_mtimes.items():
+        if _profile_mtimes.get(path) != mtime:
+            return True
+
+    return False
 
 
 def _ensure_loaded() -> list[EncoderProfile]:
-    """Load profiles if not already cached."""
+    """Load profiles if not already cached, or reload if files changed."""
     global _profiles
-    if _profiles is None:
+    if _profiles is None or _check_mtimes():
         _profiles = load_profiles()
     return _profiles
 
@@ -135,6 +168,16 @@ def load_profiles() -> list[EncoderProfile]:
             logger.critical("[DOLOS-CONFIG]   %s [INVALID: %s]", p.label, errors)
 
     _profiles = profiles
+
+    # Store mtimes for auto-reload detection
+    global _profile_mtimes
+    _profile_mtimes = {}
+    for pf in profile_files:
+        try:
+            _profile_mtimes[pf] = os.path.getmtime(pf)
+        except OSError:
+            pass
+
     return _profiles
 
 
