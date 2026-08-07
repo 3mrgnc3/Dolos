@@ -40,6 +40,7 @@ class EncoderProfile:
     key_enabled: bool
     key_path: str                    # resolved absolute path to private key file
     key_content: str                 # loaded private key PEM content (empty string if not loaded)
+    enabled: bool                    # if False, this profile is hidden from the UI entirely
     bypass_profiles_path: str        # resolved absolute path to bypass profiles dir ("" if none)
     bypass_profiles: list[str]       # display names e.g. "Balliskit / Cortex Bypass"
     bypass_stems: list[str]          # stem names e.g. "cortex_bypass_profile" for template resolution
@@ -170,13 +171,17 @@ def load_profiles() -> list[EncoderProfile]:
 
     # Log summary
     valid_count = sum(1 for p in profiles if p.valid)
+    enabled_count = sum(1 for p in profiles if p.enabled and p.valid)
+    disabled_count = sum(1 for p in profiles if not p.enabled)
     invalid_count = len(profiles) - valid_count
     logger.critical(
-        "[DOLOS-CONFIG] Loaded %d encoder profile(s) (%d valid, %d with errors)",
-        len(profiles), valid_count, invalid_count,
+        "[DOLOS-CONFIG] Loaded %d encoder profile(s): %d valid (%d enabled, %d disabled), %d with errors",
+        len(profiles), valid_count, enabled_count, disabled_count, invalid_count,
     )
     for p in profiles:
-        if p.valid:
+        if not p.enabled:
+            logger.info("[DOLOS-CONFIG]   %s [DISABLED]", p.label)
+        elif p.valid:
             bypass_info = (
                 f", {len(p.bypass_profiles)} bypass profile(s)"
                 if p.bypass_profiles
@@ -227,6 +232,7 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
 
     index = data.get("index", 0)
     command = data.get("command", "")
+    enabled = data.get("enabled", True)  # default to True if missing
 
     # SSH server config
     ssh = data.get("ssh_server", {})
@@ -290,6 +296,24 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
             for bp_file in sorted(os.listdir(bypass_profiles_path)):
                 if bp_file.endswith(".json"):
                     stem = os.path.splitext(bp_file)[0]
+                    bp_full_path = os.path.join(bypass_profiles_path, bp_file)
+
+                    # Check bypass profile enabled flag (default True)
+                    try:
+                        with open(bp_full_path, "r") as f:
+                            bp_data = json.load(f)
+                        bp_enabled = bp_data.get("enabled", True)
+                        if not bp_enabled:
+                            logger.info(
+                                "[DOLOS-CONFIG] Skipping disabled bypass profile: %s", bp_file
+                            )
+                            continue
+                    except (json.JSONDecodeError, IOError) as e:
+                        logger.warning(
+                            "[DOLOS-CONFIG] Could not read bypass profile %s: %s, including anyway",
+                            bp_full_path, e,
+                        )
+
                     # Build display name: "Balliskit / Cortex Bypass"
                     # Strip common suffixes from the stem for readability
                     display_name = stem
@@ -348,6 +372,7 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
         key_enabled=key_enabled,
         key_path=key_path,
         key_content=key_content,
+        enabled=enabled,
         bypass_profiles_path=bypass_profiles_path,
         bypass_profiles=bypass_profiles,
         bypass_stems=bypass_stems,
@@ -373,6 +398,7 @@ def _scaffold_sample_config():
     sample_profile = {
         "index": 99,
         "label": "SAMPLE_PyEncoder",
+        "enabled": False,
         "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
         "ssh_server": {
             "host": "192.168.1.100",
@@ -421,18 +447,23 @@ def scaffold_if_needed():
 
 
 def get_encoder_choices() -> list[str]:
-    """Return list of encoder labels for Mythic dropdown.
+    """Return labels of enabled encoder profiles for Mythic dropdown.
 
-    Returns ["(no profiles configured)"] if no profiles found.
+    Disabled profiles (enabled=false) are excluded.
+    Returns ["(no profiles configured)"] if no enabled profiles found.
     """
     profiles = _ensure_loaded()
-    if not profiles:
+    enabled = [p.label for p in profiles if p.enabled]
+    if not enabled:
         return ["(no profiles configured)"]
-    return [p.label for p in profiles]
+    return enabled
 
 
 def get_encoder_profile(label: str) -> Optional[EncoderProfile]:
-    """Return the EncoderProfile for a given label, or None if not found."""
+    """Return the EncoderProfile for a given label, or None if not found.
+
+    Returns disabled profiles too - callers should check .enabled.
+    """
     profiles = _ensure_loaded()
     for p in profiles:
         if p.label == label:
@@ -441,23 +472,26 @@ def get_encoder_profile(label: str) -> Optional[EncoderProfile]:
 
 
 def get_encoders_with_bypass() -> list[str]:
-    """Return labels of encoders that have bypass profiles.
+    """Return labels of enabled encoders that have at least one enabled bypass profile.
 
     Used for hide_conditions on the Bypass Profile dropdown.
     """
     profiles = _ensure_loaded()
-    return [p.label for p in profiles if p.bypass_profiles]
+    return [p.label for p in profiles if p.enabled and p.bypass_profiles]
 
 
 def get_all_bypass_choices() -> list[str]:
-    """Return all bypass profile display names plus "(None)" for the dropdown.
+    """Return all enabled bypass profile display names plus "(None)" for the dropdown.
 
-    Returns ["(None)"] if no bypass profiles exist across all encoders.
+    Only includes bypass profiles from enabled encoders.
+    Returns ["(None)"] if no enabled bypass profiles exist.
     """
     profiles = _ensure_loaded()
     seen = set()
     result = []
     for p in profiles:
+        if not p.enabled:
+            continue
         for bp in p.bypass_profiles:
             if bp not in seen:
                 seen.add(bp)

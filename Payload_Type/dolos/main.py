@@ -61,6 +61,9 @@ if valid_count == 0:
 else:
     print(f"[DOLOS] Loaded {len(profiles)} encoder profile(s): {valid_count} valid, {invalid_count} with errors")
     for p in profiles:
+        if not p.enabled:
+            print(f"[DOLOS]   {p.label} [DISABLED]")
+            continue
         status = "VALID" if p.valid else f"INVALID: {'; '.join(p.validation_errors)}"
         bypass_info = f", {len(p.bypass_profiles)} bypass profiles" if p.bypass_profiles else ""
         print(f"[DOLOS]   {p.label} [{status}{bypass_info}]")
@@ -96,7 +99,9 @@ async def _do_resync():
         len(profiles), valid, len(profiles) - valid,
     )
     for p in profiles:
-        if p.valid:
+        if not p.enabled:
+            logger.critical("[DOLOS-WATCHER]   %s [DISABLED]", p.label)
+        elif p.valid:
             bypass_info = f", {len(p.bypass_profiles)} bypass" if p.bypass_profiles else ""
             logger.critical("[DOLOS-WATCHER]   %s [VALID%s]", p.label, bypass_info)
         else:

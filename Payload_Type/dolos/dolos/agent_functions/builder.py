@@ -269,6 +269,11 @@ class Dolos(PayloadType):
             resp.build_message = f"Encoder profile '{encoder_label}' is invalid: {errors}"
             return resp
 
+        if not profile.enabled:
+            await self._step("Connecting", f"Encoder profile '{encoder_label}' is disabled", False)
+            resp.build_message = f"Encoder profile '{encoder_label}' is disabled. Enable it in encoder_profile.json or choose a different encoder."
+            return resp
+
         # Determine timeout: use profile default unless overridden by build param
         timeout = timeout_override if timeout_override > 0 else profile.timeout
 

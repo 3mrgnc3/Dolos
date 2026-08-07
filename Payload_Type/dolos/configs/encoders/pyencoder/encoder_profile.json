@@ -1,6 +1,7 @@
 {
     "index": 99,
     "label": "SAMPLE_PyEncoder",
+    "enabled": false,
     "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
     "ssh_server": {
         "host": "192.168.1.100",
