@@ -62,13 +62,21 @@ def _reset_cache():
 
 
 def _check_mtimes() -> bool:
-    """Check if any profile files have changed since last load.
+    """Check if any config files have changed since last load.
 
     Returns True if reload is needed (new files, removed files, or modified files).
     This enables live config editing: operators can edit files in the
-    bind-mounted dolos_profiles/ directory and changes take effect on
-    the next build without restarting the container.
+    bind-mounted dolos_profiles/ directory and changes take effect
+    without restarting the container.
+
+    Checks encoder_profile.json files AND all files under the config
+    directory tree (bypass profiles, SSH keys, etc.) so that adding
+    or removing a bypass_profiles directory triggers a reload.
     """
+    config_dir_abs = os.path.abspath(CONFIG_DIR)
+    if not os.path.isdir(config_dir_abs):
+        return True
+
     encoders_dir = os.path.join(CONFIG_DIR, "encoders")
     current_files = _find_profile_files(encoders_dir)
     current_mtimes: dict[str, float] = {}
@@ -79,6 +87,18 @@ def _check_mtimes() -> bool:
         except OSError:
             # File disappeared between listing and stat - trigger reload
             return True
+
+    # Also track all files under the config directory (bypass profiles, etc.)
+    for root, _dirs, files in os.walk(config_dir_abs):
+        for fname in files:
+            fpath = os.path.join(root, fname)
+            # Skip the profile JSONs we already tracked above
+            if fname == "encoder_profile.json":
+                continue
+            try:
+                current_mtimes[fpath] = os.path.getmtime(fpath)
+            except OSError:
+                return True
 
     # New files or removed files
     if set(current_mtimes.keys()) != set(_profile_mtimes.keys()):

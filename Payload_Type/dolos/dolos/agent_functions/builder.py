@@ -51,29 +51,45 @@ _CAPABILITIES_PATH = pathlib.Path(__file__).parent.parent / "agent_capabilities.
 _VERSION = json.loads(_CAPABILITIES_PATH.read_text())["agent_version"]
 
 # ---------------------------------------------------------------------------
-# Dynamic query functions for Mythic build parameter dropdowns.
-# These are called by Mythic every time the user opens a dropdown,
-# so they always reflect the latest config on disk (via mtime reload).
+# Build parameter choices - loaded from config and refreshed on disk changes.
+#
+# Mythic's React frontend does NOT call dynamic_query_function for build
+# parameters - it only uses it for command parameters (tasking). So we can't
+# rely on dynamic queries for dropdown choices.
+#
+# Instead, we watch the config directory for changes (via mtime polling in
+# main.py) and force a Mythic payload type re-sync when config changes.
+# This makes the UI update its dropdown choices without a container restart.
 # ---------------------------------------------------------------------------
 
-_PLACEHOLDER_CHOICES = ["(loading...)", "(None)"]
 
-async def _encoder_choices_query(msg):
-    """Dynamic query for the Encoder dropdown."""
-    from mythic_container.PayloadBuilder import PTRPCDynamicQueryBuildParameterFunctionMessageResponse
-    choices = config_loader.get_encoder_choices()
-    return PTRPCDynamicQueryBuildParameterFunctionMessageResponse(
-        Success=True, Choices=choices
-    )
+def _update_build_params():
+    """Re-read config and update build parameter choices on the PayloadType."""
+    global _ENCODER_CHOICES, _BYPASS_CHOICES, _ENCODERS_WITH_BYPASS
+    _ENCODER_CHOICES = config_loader.get_encoder_choices()
+    _BYPASS_CHOICES = config_loader.get_all_bypass_choices()
+    _ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
+    # Update the class-level build parameter choices
+    for param in Dolos.build_parameters:
+        if param.name == "Encoder":
+            param.choices = _ENCODER_CHOICES
+        elif param.name == "Bypass Profile":
+            param.choices = _BYPASS_CHOICES
+            if _ENCODERS_WITH_BYPASS:
+                param.hide_conditions = [
+                    HideCondition(
+                        name="Encoder",
+                        operand=HideConditionOperand.NotIN,
+                        choices=_ENCODERS_WITH_BYPASS,
+                    )
+                ]
+            else:
+                param.hide_conditions = []
 
 
-async def _bypass_choices_query(msg):
-    """Dynamic query for the Bypass Profile dropdown."""
-    from mythic_container.PayloadBuilder import PTRPCDynamicQueryBuildParameterFunctionMessageResponse
-    choices = config_loader.get_all_bypass_choices()
-    return PTRPCDynamicQueryBuildParameterFunctionMessageResponse(
-        Success=True, Choices=choices
-    )
+_ENCODER_CHOICES = config_loader.get_encoder_choices()
+_BYPASS_CHOICES = config_loader.get_all_bypass_choices()
+_ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +137,7 @@ class Dolos(PayloadType):
                 "template, and optional bypass profiles. Edit profiles on disk "
                 "and reload takes effect immediately."
             ),
-            choices=_PLACEHOLDER_CHOICES,
-            dynamic_query_function=_encoder_choices_query,
+            choices=_ENCODER_CHOICES,
             group_name="Remote Command",
         ),
         BuildParameter(
@@ -133,10 +148,15 @@ class Dolos(PayloadType):
                 "Only shown when the encoder has bypass profiles configured. "
                 "Choose (None) to skip bypass."
             ),
-            choices=_PLACEHOLDER_CHOICES,
-            dynamic_query_function=_bypass_choices_query,
+            choices=_BYPASS_CHOICES,
             default_value="(None)",
-            hide_conditions=[],
+            hide_conditions=[
+                HideCondition(
+                    name="Encoder",
+                    operand=HideConditionOperand.NotIN,
+                    choices=_ENCODERS_WITH_BYPASS,
+                )
+            ] if _ENCODERS_WITH_BYPASS else [],
             group_name="Remote Command",
         ),
         BuildParameter(
