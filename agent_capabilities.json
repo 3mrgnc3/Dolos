@@ -9,6 +9,6 @@
   "architectures": ["x86_64", "aarch64", "x86", "arm64", "arm", "mips", "mipsel"],
   "c2": [],
   "mythic_version": "3.3",
-  "agent_version": "1.0.2",
+  "agent_version": "1.0.3",
   "supported_wrappers": []
 }

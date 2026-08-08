@@ -399,12 +399,60 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
     )
 
 
+def _copy_defaults_into_config():
+    """Copy default configs from /Mythic/configs.defaults/ into /Mythic/configs/.
+
+    Called on first run when the dolos_profiles volume is empty.
+    Idempotent — never overwrites existing files.
+    """
+    config_dir = os.path.abspath(CONFIG_DIR)
+    defaults_dir = os.path.abspath(os.path.join(os.path.dirname(CONFIG_DIR) or "/Mythic", "configs.defaults"))
+
+    if not os.path.isdir(defaults_dir):
+        # No defaults bundled (e.g. local dev / bind-mount mode) — fall back to scaffold
+        return False
+
+    copied = 0
+    for root, _dirs, files in os.walk(defaults_dir):
+        rel = os.path.relpath(root, defaults_dir)
+        target_dir = os.path.join(config_dir, rel) if rel != "." else config_dir
+        os.makedirs(target_dir, exist_ok=True)
+        for fname in files:
+            target_path = os.path.join(target_dir, fname)
+            if not os.path.exists(target_path):
+                src_path = os.path.join(root, fname)
+                try:
+                    import shutil
+                    shutil.copy2(src_path, target_path)
+                    copied += 1
+                except IOError as e:
+                    logger.warning("[DOLOS-CONFIG] Failed to copy %s: %s", src_path, e)
+
+    if copied:
+        logger.critical(
+            "[DOLOS-CONFIG] Copied %d default config file(s) into %s", copied, config_dir
+        )
+    return True
+
+
 def _scaffold_sample_config():
     """Auto-create a sample config directory with boilerplate profile.
 
-    Idempotent - never overwrites existing files.
+    First attempts to copy from bundled defaults (/Mythic/configs.defaults/).
+    If that directory doesn't exist (local dev mode), generates a sample profile.
+    Idempotent — never overwrites existing files.
     """
     config_dir = os.path.abspath(CONFIG_DIR)
+
+    # Try bundled defaults first (Docker image mode)
+    if _copy_defaults_into_config():
+        logger.critical("[DOLOS-CONFIG] Config populated from bundled defaults")
+        logger.critical(
+            "[DOLOS-CONFIG] Edit encoder_profile.json with your SSH credentials before building"
+        )
+        return
+
+    # Fallback: generate sample profile (local dev / bind-mount mode)
     encoders_dir = os.path.join(config_dir, "encoders", "pyencoder")
     ssh_keys_dir = os.path.join(config_dir, "ssh_keys", "sample_server")
 
