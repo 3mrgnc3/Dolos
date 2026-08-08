@@ -42,11 +42,26 @@ Copy `dev_tools/encoder/encoder.py` to `C:\tools\encoder.py`. Requires Python (`
 
 ### 3. Install into Mythic
 
+From your Mythic directory:
+
 ```bash
-cd /path/to/Mythic
-./mythic-cli uninstall dolos
+sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
+```
+
+This pulls the pre-built Docker image from Docker Hub. No local build required.
+
+To install from a local clone instead:
+
+```bash
+sudo ./mythic-cli install folder /path/to/Dolos
+```
+
+To reinstall or update:
+
+```bash
+sudo ./mythic-cli uninstall dolos
 bash /path/to/Dolos/dev_tools/remote/full_uninstall.sh
-./mythic-cli install folder ../Dolos
+sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
 ### 4. Build
