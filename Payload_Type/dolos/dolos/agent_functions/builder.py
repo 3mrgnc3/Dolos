@@ -173,10 +173,6 @@ _ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
 class Dolos(PayloadType):
     """
     Dolos - "The Craftsman of Lies" - a Mythic wrapper payload.
-
-    Takes an existing built payload (shellcode, EXE, etc.), transfers it to an
-    external server over SSH, runs an encoder command, and returns the result.
-    The wrapped payload's C2 is already embedded - no C2 profile selection needed.
     """
 
     name = "dolos"
@@ -186,11 +182,9 @@ class Dolos(PayloadType):
     wrapper = True
     wrapped_payloads = ["apollo", "merlin", "athena", "medusa", "hannibal", "freyja", "poopsie", "poseidon"]
     note = (
-        f"Dolos v{_VERSION} | The Craftsman of Lies - wrap an existing payload, "
-        "transfer it to an external server over SSH/SFTP, run an encoder "
-        "(C# cradle, Donut, ShellcodePack, custom), and return the result. "
-        "Built-in C# cradle encoder (csc.exe). Full session logging. "
-        "Rotating file logs. Per-profile SSH config. See docs for setup."
+        f"""
+Dolos v{_VERSION} | "The Craftsman of Lies" Mythic wrapper - wrap an existing payload, transfer it to an external SSH/SFTP host,.
+Do watever... (C# Cradle, Donut, ShellcodePack, Custom xyx...). Has full logging, per-profile SSH configs, See docs for setup."""
     )
     supports_dynamic_loading = False
     mythic_encrypts = True
