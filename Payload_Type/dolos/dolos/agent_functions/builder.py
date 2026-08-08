@@ -267,7 +267,7 @@ class Dolos(PayloadType):
     build_steps = [
         BuildStep(step_name="Rebuilding", step_description="Auto-regenerating shellcode - inner payload already wrapped by Dolos"),
         BuildStep(step_name="Connecting", step_description="Verifying SSH connectivity, auth, and SFTP write test"),
-        BuildStep(step_name="Preparing", step_description="Generating workdir and creating it on remote server"),
+        BuildStep(step_name="Preparing", step_description="Generating workdir, installing tools, and creating on remote server"),
         BuildStep(step_name="Uploading", step_description="Sending wrapped payload to the remote workdir"),
         BuildStep(step_name="Processing", step_description="Running encoder command on remote server"),
         BuildStep(step_name="Retrieving", step_description="Downloading result file from remote server"),
@@ -549,6 +549,101 @@ class Dolos(PayloadType):
                 shutil.rmtree(local_dir)
             except Exception:
                 pass
+
+        # ── 3.5. Install tools on remote server (if configured) ──
+
+        if profile.install_tools and profile.toolset:
+            install_script = config_loader.get_install_script(encoder_label, remote_os)
+            toolset_files = config_loader.get_toolset_files(encoder_label)
+
+            if install_script or toolset_files:
+                toolset_name = profile.toolset
+                await self._step("Preparing",
+                    f"Installing tools ({toolset_name}) on {remote_os}…", True)
+
+                # Upload toolset files to the remote workdir
+                for tool_file in toolset_files:
+                    tool_filename = os.path.basename(tool_file)
+                    # Don't upload the install script itself yet — we'll upload it separately
+                    if install_script and os.path.abspath(tool_file) == os.path.abspath(install_script):
+                        continue
+                    try:
+                        sftp.put(tool_file, workdir + "/" + tool_filename)
+                        cleanup_files.append(tool_filename)
+                        logger.info(f"[DOLOS-BUILD] Uploaded tool file: {tool_filename}")
+                    except Exception as e:
+                        logger.warning(f"[DOLOS-BUILD] Failed to upload tool file {tool_filename}: {e}")
+
+                # Upload and run the install script
+                if install_script:
+                    install_script_name = os.path.basename(install_script)
+                    remote_install_path = workdir + "/" + install_script_name
+                    try:
+                        sftp.put(install_script, remote_install_path)
+                        cleanup_files.append(install_script_name)
+                        logger.info(f"[DOLOS-BUILD] Uploaded install script: {install_script_name}")
+
+                        # Execute the install script
+                        if remote_os == "windows":
+                            install_cmd = f'powershell.exe -ExecutionPolicy Bypass -File "{workdir_cmd}\\{install_script_name}"'
+                        else:
+                            install_cmd = f'chmod +x "{workdir}/{install_script_name}" && "{workdir}/{install_script_name}"'
+
+                        logger.info(f"[DOLOS-BUILD] Running install script: {install_cmd[:200]}")
+                        session_log.running_command(install_cmd)
+
+                        _stdin, install_stdout, install_stderr = client.exec_command(install_cmd, timeout=600)
+                        install_exit = install_stdout.channel.recv_exit_status()
+                        install_out = install_stdout.read().decode("utf-8", "replace")
+                        install_err = install_stderr.read().decode("utf-8", "replace")
+
+                        logger.info(f"[DOLOS-BUILD] Install script exit code: {install_exit}")
+                        if install_out:
+                            for line in install_out.splitlines():
+                                session_log.command_stdout(line)
+                        if install_err:
+                            for line in install_err.splitlines():
+                                session_log.command_stderr(line)
+
+                        if install_exit != 0:
+                            await self._step("Preparing",
+                                f"Tool installation failed (exit {install_exit}): {install_err[:200]}", False)
+                            resp.build_message = (
+                                f"Tool installation failed for '{toolset_name}' on {remote_os} "
+                                f"(exit code {install_exit}). "
+                                f"stderr: {install_err[:300]}. "
+                                f"Install the tools manually or set install_tools=false in the encoder profile."
+                            )
+                            # Clean up
+                            try:
+                                for f in cleanup_files:
+                                    sftp.remove(workdir + "/" + f)
+                            except Exception:
+                                pass
+                            client.close()
+                            return resp
+
+                        await self._step("Preparing",
+                            f"✅ Tools installed ({toolset_name}) on {remote_os}", True)
+                    except Exception as e:
+                        await self._step("Preparing",
+                            f"Tool installation failed: {e}", False)
+                        resp.build_message = f"Tool installation failed: {e}"
+                        try:
+                            for f in cleanup_files:
+                                sftp.remove(workdir + "/" + f)
+                        except Exception:
+                            pass
+                        client.close()
+                        return resp
+                else:
+                    logger.info("[DOLOS-BUILD] No install script found for OS=%s, toolset=%s — skipping installation", remote_os, toolset_name)
+                    await self._step("Preparing",
+                        f"No install script for {remote_os} in toolset '{toolset_name}' — skipping", True)
+            else:
+                logger.info("[DOLOS-BUILD] No install script or toolset files found for '%s'", profile.toolset)
+        else:
+            logger.info("[DOLOS-BUILD] Tool installation not configured for '%s'", encoder_label)
 
         # ── 4. Run encoder command (Step 4: Processing) ──
 

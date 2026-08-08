@@ -48,6 +48,8 @@ class EncoderProfile:
     timeout: int                     # command timeout in seconds (per-profile)
     success_string: str               # string in stdout confirming success
     fail_string: str                  # string in stdout/stderr indicating failure
+    install_tools: bool               # whether to attempt tool installation before encoding
+    toolset: str                      # subdirectory name under configs/tools/ ("" = no tools)
     valid: bool
     validation_errors: list[str]
 
@@ -277,6 +279,10 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
     success_string = str(data.get("success_string", "ENCODING_SUCCESS"))
     fail_string = str(data.get("fail_string", "ENCODING_FAILED"))
 
+    # Tool installation
+    install_tools = bool(data.get("install_tools", False))
+    toolset = str(data.get("toolset", ""))
+
     # Bypass profiles
     bypass_profiles_relative = data.get("bypass_profiles", "")
     bypass_profiles_path = ""
@@ -386,6 +392,8 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
         timeout=timeout,
         success_string=success_string,
         fail_string=fail_string,
+        install_tools=install_tools,
+        toolset=toolset,
         valid=valid,
         validation_errors=validation_errors,
     )
@@ -418,6 +426,8 @@ def _scaffold_sample_config():
         "timeout": 300,
         "success_string": "ENCODING_SUCCESS",
         "fail_string": "ENCODING_FAILED",
+        "install_tools": false,
+        "toolset": "",
         "bypass_profiles": "",
     }
 
@@ -531,3 +541,47 @@ def get_bypass_stems_for(label: str) -> list[str]:
         if p.label == label:
             return p.bypass_stems
     return []
+
+
+def get_toolset_files(label: str) -> list[str]:
+    """Return list of file paths in configs/tools/{toolset}/ for a given encoder.
+
+    Returns an empty list if the toolset directory doesn't exist or has no files.
+    Each path is absolute and points to a real file (not a directory or symlink).
+    """
+    profile = get_encoder_profile(label)
+    if profile is None or not profile.install_tools or not profile.toolset:
+        return []
+    tools_dir = os.path.join(CONFIG_DIR, "tools", profile.toolset)
+    if not os.path.isdir(tools_dir):
+        logger.warning("[DOLOS-CONFIG] Toolset directory not found: %s", tools_dir)
+        return []
+    files = []
+    for f in sorted(os.listdir(tools_dir)):
+        fpath = os.path.join(tools_dir, f)
+        if os.path.isfile(fpath) and not f.startswith("."):
+            files.append(fpath)
+    return files
+
+
+def get_install_script(label: str, remote_os: str) -> str | None:
+    """Return the path to the install script for a given encoder and OS.
+
+    Looks for configs/tools/{toolset}/install_{os}.ps1 (Windows)
+    or configs/tools/{toolset}/install_{os}.sh (Linux/macOS).
+
+    Returns the absolute path to the script, or None if not found.
+    """
+    profile = get_encoder_profile(label)
+    if profile is None or not profile.install_tools or not profile.toolset:
+        return None
+    tools_dir = os.path.join(CONFIG_DIR, "tools", profile.toolset)
+    if remote_os == "windows":
+        script_name = "install_windows.ps1"
+    else:
+        script_name = "install_linux.sh"
+    script_path = os.path.join(tools_dir, script_name)
+    if os.path.isfile(script_path):
+        return script_path
+    logger.warning("[DOLOS-CONFIG] Install script not found: %s", script_path)
+    return None
