@@ -95,6 +95,7 @@ Private keys and passwords are **gitignored**. The repo ships a sample `pyencode
 
 ## Changelog
 
+- **v1.0.8** - Updated builder.py docstring and note.
 - **v1.0.7** - Fix syntax error in main.py (broken newline in RABBITMQ_CONFIG block).
 - **v1.0.6** - Remove custom env vars from config.json that caused Docker Compose warnings. Logging defaults are internal to the container.
 - **v1.0.5** - Remove harmful rabbitmq_config.json, fix local dev fallback message, clean up stale references.
