@@ -1,4 +1,4 @@
-# Encoder Tools for Remote Server
+# DEMO and TEST Encoder Tools for Remote Server
 
 Deploy these to `C:\tools\` on the Windows remote server.
 
@@ -49,9 +49,3 @@ CreateThread with a configurable timeout. For verifying encoded shellcode works 
 
 **Warning:** Only run on test/development machines. Executes arbitrary shellcode.
 
-## .env Configuration
-
-Add this to your Mythic `.env`:
-```
-DOLOS_REMOTE_COMMAND={"PyEncoder_v1.0":"py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}","Passthrough":"py.exe C:\\tools\\passthrough_encoder.py {workdir}\\{input} {workdir}\\{output}","Donut_x64":"C:\\tools\\donut.exe -f 1 -i {workdir}\\{input} -o {workdir}\\{output}"}
-```
