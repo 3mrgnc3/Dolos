@@ -183,8 +183,8 @@ class Dolos(PayloadType):
             hide_conditions=[
                 HideCondition(
                     name="Upload New Profile",
-                    operand=HideConditionOperand.EQ,
-                    value=True,
+                    operand=HideConditionOperand.NotEQ,
+                    value=False,
                 )
             ],
         ),
@@ -202,8 +202,8 @@ class Dolos(PayloadType):
             hide_conditions=[
                 HideCondition(
                     name="Upload New Profile",
-                    operand=HideConditionOperand.EQ,
-                    value=True,
+                    operand=HideConditionOperand.NotEQ,
+                    value=False,
                 ),
             ] + ([
                 HideCondition(
@@ -227,8 +227,8 @@ class Dolos(PayloadType):
             hide_conditions=[
                 HideCondition(
                     name="Upload New Profile",
-                    operand=HideConditionOperand.EQ,
-                    value=True,
+                    operand=HideConditionOperand.NotEQ,
+                    value=False,
                 )
             ],
         ),
@@ -245,8 +245,8 @@ class Dolos(PayloadType):
             hide_conditions=[
                 HideCondition(
                     name="Upload New Profile",
-                    operand=HideConditionOperand.EQ,
-                    value=True,
+                    operand=HideConditionOperand.NotEQ,
+                    value=False,
                 )
             ],
         ),
@@ -263,8 +263,8 @@ class Dolos(PayloadType):
             hide_conditions=[
                 HideCondition(
                     name="Upload New Profile",
-                    operand=HideConditionOperand.EQ,
-                    value=True,
+                    operand=HideConditionOperand.NotEQ,
+                    value=False,
                 )
             ],
         ),
@@ -283,8 +283,8 @@ class Dolos(PayloadType):
             hide_conditions=[
                 HideCondition(
                     name="Upload New Profile",
-                    operand=HideConditionOperand.EQ,
-                    value=True,
+                    operand=HideConditionOperand.NotEQ,
+                    value=False,
                 )
             ],
         ),
