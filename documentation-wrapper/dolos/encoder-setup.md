@@ -5,7 +5,7 @@ weight = 40
 
 ## Built-in Encoder v2.3 (C# Cradle)
 
-Dolos includes a Python-based encoder (`dev_tools/encoder/encoder.py` in the repo)
+Dolos includes a Python-based encoder (`test_encoders/encoder.py` in the repo)
 that converts raw shellcode into standalone Windows PE executables using C# and `csc.exe`.
 
 <svg viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;">
@@ -65,7 +65,7 @@ The C# approach uses Microsoft's own compiler, guaranteeing valid PE output:
 
 ```powershell
 # Copy the encoder to the remote server
-scp dev_tools/encoder/encoder.py operator@192.168.1.100:C:/tools/encoder.py
+scp test_encoders/encoder.py operator@192.168.1.100:C:/tools/encoder.py
 
 # Verify Python is available
 py --version

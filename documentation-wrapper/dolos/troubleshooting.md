@@ -172,11 +172,8 @@ cd /home/mrgnc/MythicC2/Mythic
 # 1. Uninstall current version
 ./mythic-cli uninstall dolos
 
-# 2. Clean DB entries and stop container
-bash /home/mrgnc/MythicC2/Dolos/dev_tools/remote/full_uninstall.sh
-
-# 3. Install new version (fresh build, no cached layers)
-./mythic-cli install folder ../Dolos
+# 2. Install new version
+./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
 **Important:** Always do a full uninstall + reinstall. Do not just restart -

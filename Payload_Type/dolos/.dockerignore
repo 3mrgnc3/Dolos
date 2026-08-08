@@ -22,8 +22,8 @@ __pycache__/
 # Venv
 .venv/
 
-# Dev scripts - NOT needed in the container
-dev_tools/
+# Dev/test scripts - NOT needed in the container
+# test_encoders/ is for operators to deploy remotely, not for the container
 
 # Local-only config - contains RabbitMQ passwords, DO NOT ship
 rabbitmq_config.local.json

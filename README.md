@@ -38,7 +38,7 @@ Edit `Payload_Type/dolos/configs/encoders/` - each subdirectory has an `encoder_
 
 ### 2. Deploy the encoder on the remote server
 
-Copy `dev_tools/encoder/encoder.py` to `C:\tools\encoder.py`. Requires Python (`py.exe`) and `csc.exe` (built into Windows). If `install_tools` is `true`, Dolos will attempt to install Python automatically.
+Copy `test_encoders/encoder.py` to `C:\tools\encoder.py`. Requires Python (`py.exe`) and `csc.exe` (built into Windows). If `install_tools` is `true`, Dolos will attempt to install Python automatically.
 
 ### 3. Install into Mythic
 
@@ -60,7 +60,6 @@ To reinstall or update:
 
 ```bash
 sudo ./mythic-cli uninstall dolos
-bash /path/to/Dolos/dev_tools/remote/full_uninstall.sh
 sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 

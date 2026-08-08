@@ -16,8 +16,8 @@ install_test*.txt
 *.log
 screenshots/
 
-## Dev tooling
-# dev_tools/  # now tracked - test harness lives here
+## Dev/test scripts (NOT in the container, but tracked in repo)
+# test_encoders/ is tracked for operator use
 mythic-mcp-conf.json
 .mcp.json
 .claude/
@@ -45,7 +45,7 @@ rabbitmq_config.local.json
 ## Jupyter notebooks (testing only)
 *.ipynb
 
-## Root-level dev files (moved to dev_tools/)
+## Root-level dev files (removed)
 /encoder_v2.py
 /shellcode_test.py
 .venv/
