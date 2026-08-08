@@ -1,8 +1,10 @@
 # <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos - The Craftsman of Lies
 
-**Mythic wrapper payload type - encode shellcode on your own infrastructure.**
+**Mythic wrapper payload type - encode shellcode on your own remote/external infrastructure with traditional scripting and tools.**
 
 Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself - the remote encoder does all the work.
+
+e.g connect to you own licence copy or Bi want you to ONLY make the string '' and have all the processing and logs igested automatically into Mythic's database.
 
 ---
 
@@ -69,7 +71,7 @@ Payload_Type/dolos/configs/
     │   ├── install_windows.ps1
     │   └── install_linux.sh
     ├── donut_x64/SETUP.md           ← donut.exe is standalone
-    ├── balliskit/SETUP.md           ← commercial tools from balliskit.com
+    ├── balliskit/SETUP.md           ← [Balliskit ShellcodePack tools](https://balliskit.com/)
     └── passthrough/SETUP.md          ← needs Python
 ```
 
