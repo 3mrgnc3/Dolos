@@ -1,14 +1,32 @@
 {
-  "os": ["SSH Server + Any OS"],
-  "languages": ["Python"],
+  "os": [
+    "SSH Server + Any OS"
+  ],
+  "languages": [
+    "Python"
+  ],
   "features": {
-    "mythic": ["wrapper"],
-    "custom": ["remote-encoding", "ssh-transfer", "session-log"]
+    "mythic": [
+      "wrapper"
+    ],
+    "custom": [
+      "remote-encoding",
+      "ssh-transfer",
+      "session-log"
+    ]
   },
-  "payload_output": ["exe", "dll", "bin", "elf"],
-  "architectures": ["x86_64", "aarch64"],
+  "payload_output": [
+    "exe",
+    "dll",
+    "bin",
+    "elf"
+  ],
+  "architectures": [
+    "x86_64",
+    "aarch64"
+  ],
   "c2": [],
   "mythic_version": "3.3",
-  "agent_version": "1.0.3",
+  "agent_version": "1.0.4",
   "supported_wrappers": []
 }

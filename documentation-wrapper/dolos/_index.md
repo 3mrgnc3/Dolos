@@ -88,7 +88,7 @@ result back - all over SSH/SFTP.
   <text x="560" y="355" class="title" font-size="10">Forensic timestamps</text>
 </svg>
 
-**Current version: v1.0.3**
+**Current version: v1.0.4**
 
 ### Quick Start
 
