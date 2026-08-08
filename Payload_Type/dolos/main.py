@@ -26,7 +26,8 @@ mythic_container_dir = os.path.dirname(os.path.abspath(__file__))
 
 # ── Local debugging: use a local rabbitmq_config if RABBITMQ_CONFIG=local ──
 
-if os.environ.get("RABBITMQ_CONFIG") == "local":n    local_config = os.path.join(mythic_container_dir, "rabbitmq_config.local.json")
+if os.environ.get("RABBITMQ_CONFIG") == "local":
+    local_config = os.path.join(mythic_container_dir, "rabbitmq_config.local.json")
     default_config = os.path.join(mythic_container_dir, "rabbitmq_config.json")
     if os.path.exists(local_config):
         import shutil
