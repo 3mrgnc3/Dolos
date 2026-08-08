@@ -14,5 +14,9 @@
         }
     },
     "timeout": 300,
+    "success_string": "ENCODING_SUCCESS",
+    "fail_string": "ENCODING_FAILED",
+    "install_tools": false,
+    "toolset": "",
     "bypass_profiles": ""
 }

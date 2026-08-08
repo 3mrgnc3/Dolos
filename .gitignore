@@ -14,7 +14,6 @@ reference_code/
 ## Dev artifacts
 install_test*.txt
 *.log
-tools/
 screenshots/
 
 ## Dev tooling
@@ -67,3 +66,7 @@ Payload_Type/dolos/configs/ssh_keys/*/ssh_key
 Payload_Type/dolos/configs/encoders/*/bypass_profiles/*.json
 Payload_Type/dolos/configs/encoders/*/*/bypass_profiles/*.json
 Payload_Type/dolos/rabbitmq_config.local.json
+
+## Install scripts are tracked in configs/tools/.
+## Only .gitignore in there is for binaries operators may drop in.
+## The live server's tools/ at dolos_profiles/tools/ is gitignored via .dockerignore.
