@@ -4,7 +4,7 @@
 
 Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself - the remote encoder does all the work.
 
-e.g connect to you own licence copy or Bi want you to ONLY make the string '' and have all the processing and logs igested automatically into Mythic's database.
+e.g connect to your own licence copy or [Balliskit's ShellcodePack](https://balliskit.com/) tools and have all the processing and logs ingested automatically into Mythic's database.
 
 ---
 
@@ -71,7 +71,7 @@ Payload_Type/dolos/configs/
     │   ├── install_windows.ps1
     │   └── install_linux.sh
     ├── donut_x64/SETUP.md           ← donut.exe is standalone
-    ├── balliskit/SETUP.md           ← [Balliskit ShellcodePack tools](https://balliskit.com/)
+    ├── balliskit/SETUP.md           ← commercial tools from balliskit.com
     └── passthrough/SETUP.md          ← needs Python
 ```
 
