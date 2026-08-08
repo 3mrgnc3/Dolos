@@ -65,6 +65,9 @@ Payload_Type/dolos/configs/ssh_keys/*/ssh_key
 !Payload_Type/dolos/configs/encoders/*/*/*.pub
 Payload_Type/dolos/configs/encoders/*/bypass_profiles/*.json
 Payload_Type/dolos/configs/encoders/*/*/bypass_profiles/*.json
+
+## RabbitMQ config (generated at runtime by mythic-cli, contains passwords)
+Payload_Type/dolos/rabbitmq_config.json
 Payload_Type/dolos/rabbitmq_config.local.json
 
 ## Install scripts are tracked in configs/tools/.

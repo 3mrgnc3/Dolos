@@ -24,10 +24,9 @@ import time
 
 mythic_container_dir = os.path.dirname(os.path.abspath(__file__))
 
-# ── Local debugging: swap rabbitmq_config.json if RABBITMQ_CONFIG=local ──
+# ── Local debugging: use a local rabbitmq_config if RABBITMQ_CONFIG=local ──
 
-if os.environ.get("RABBITMQ_CONFIG") == "local":
-    local_config = os.path.join(mythic_container_dir, "rabbitmq_config.local.json")
+if os.environ.get("RABBITMQ_CONFIG") == "local":n    local_config = os.path.join(mythic_container_dir, "rabbitmq_config.local.json")
     default_config = os.path.join(mythic_container_dir, "rabbitmq_config.json")
     if os.path.exists(local_config):
         import shutil
@@ -35,7 +34,8 @@ if os.environ.get("RABBITMQ_CONFIG") == "local":
         print(f"[DOLOS] Using local RabbitMQ config: {local_config}")
     else:
         print(f"[DOLOS] WARNING: RABBITMQ_CONFIG=local but {local_config} not found")
-        print(f"[DOLOS] Copy rabbitmq_config.local.template.json to rabbitmq_config.local.json and fill in credentials.")
+        print(f"[DOLOS] Running inside Docker - RABBITMQ_* env vars are set by mythic-cli, no config file needed.")
+        print(f"[DOLOS] For local dev, create rabbitmq_config.local.json in InstalledServices/dolos/")
 
 # ── Development mode: disable SSL verification for self-signed certs ──
 
