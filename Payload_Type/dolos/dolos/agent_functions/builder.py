@@ -10,7 +10,7 @@ by Mythic. No file-dropdown, no GraphQL file lookup, no monkey-patch needed.
 Build parameters:
   - Encoder (ChooseOne from encoder profiles in configs/)
   - Bypass Profile (ChooseOne, shown only when encoder has bypass profiles)
-  - Timeout (Number, 0 = use encoder profile default)
+  - Timeout (ChooseOneCustom, dynamically loaded from encoder profile)
   - Regenerate Shellcode (Boolean, default True)
 
 Success/fail strings come from the encoder profile JSON, not the UI.
@@ -81,6 +81,33 @@ async def _query_encoders(
     )
 
 
+async def _query_timeouts(
+    msg: PTRPCDynamicQueryBuildParameterFunctionMessage,
+) -> PTRPCDynamicQueryBuildParameterFunctionMessageResponse:
+    """Dynamic query callback for Timeout dropdown.
+
+    Returns timeout values from all enabled encoder profiles plus
+    common alternatives. ChooseOneCustom lets operators type a
+    custom value if the presets don't match.
+    """
+    choices = []
+    seen = set()
+    # Add each encoder profile's timeout (deduplicated)
+    for p in config_loader._ensure_loaded():
+        if p.enabled and p.timeout not in seen:
+            choices.append(str(p.timeout))
+            seen.add(p.timeout)
+    # Common alternatives
+    for t in [60, 120, 300, 600, 900, 1800]:
+        if t not in seen:
+            choices.append(str(t))
+    if not choices:
+        choices = ["300"]
+    return PTRPCDynamicQueryBuildParameterFunctionMessageResponse(
+        Success=True, Choices=choices
+    )
+
+
 async def _query_bypass_profiles(
     msg: PTRPCDynamicQueryBuildParameterFunctionMessage,
 ) -> PTRPCDynamicQueryBuildParameterFunctionMessageResponse:
@@ -101,10 +128,25 @@ def _update_build_params():
     _ENCODER_CHOICES = config_loader.get_encoder_choices()
     _BYPASS_CHOICES = config_loader.get_all_bypass_choices()
     _ENCODERS_WITH_BYPASS = config_loader.get_encoders_with_bypass()
+    # Also build timeout choices from profile data
+    _TIMEOUT_CHOICES = []
+    _seen_timeouts = set()
+    for p in config_loader._ensure_loaded():
+        if p.enabled and p.timeout not in _seen_timeouts:
+            _TIMEOUT_CHOICES.append(str(p.timeout))
+            _seen_timeouts.add(p.timeout)
+    for t in [60, 120, 300, 600, 900, 1800]:
+        if t not in _seen_timeouts:
+            _TIMEOUT_CHOICES.append(str(t))
+    if not _TIMEOUT_CHOICES:
+        _TIMEOUT_CHOICES = ["300"]
+
     # Update the class-level build parameter choices
     for param in Dolos.build_parameters:
         if param.name == "Encoder":
             param.choices = _ENCODER_CHOICES
+        elif param.name == "Timeout":
+            param.choices = _TIMEOUT_CHOICES
         elif param.name == "Bypass Profile":
             param.choices = _BYPASS_CHOICES
             if _ENCODERS_WITH_BYPASS:
@@ -195,14 +237,16 @@ class Dolos(PayloadType):
         ),
         BuildParameter(
             name="Timeout",
-            parameter_type=BuildParameterType.Number,
+            parameter_type=BuildParameterType.ChooseOneCustom,
             description=(
                 "Timeout in seconds for the remote command. "
-                "Set to 0 to use the encoder profile's default timeout. "
-"Overriding here is for one-off builds; to change the default, "
-                "edit the encoder_profile.json on the server."
+                "The dropdown shows the selected encoder's default timeout "
+                "plus common alternatives. Type a custom value to override. "
+                "To change the default, edit encoder_profile.json on the server."
             ),
-            default_value=0,
+            choices=["300"],
+            default_value="300",
+            dynamic_query_function=_query_timeouts,
             required=False,
             group_name="Remote Command",
         ),
@@ -249,7 +293,8 @@ class Dolos(PayloadType):
 
         encoder_label = (self.get_parameter("Encoder") or "").strip()
         bypass_display = (self.get_parameter("Bypass Profile") or "(None)").strip()
-        timeout_override = int(self.get_parameter("Timeout") or 0)
+        timeout_override_raw = self.get_parameter("Timeout") or "0"
+        timeout_override = int(timeout_override_raw) if timeout_override_raw else 0
         regenerate = self.get_parameter("Regenerate Shellcode") or False
 
         # ── Validate: wrapped payload must be present ──
