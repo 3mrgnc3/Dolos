@@ -95,6 +95,7 @@ Private keys and passwords are **gitignored**. The repo ships a sample `pyencode
 
 ## Changelog
 
+- **v1.0.6** - Remove custom env vars from config.json that caused Docker Compose warnings. Logging defaults are internal to the container.
 - **v1.0.5** - Remove harmful rabbitmq_config.json, fix local dev fallback message, clean up stale references.
 - **v1.0.4** - Rebuilt from clean source to verify all fixes are baked in.
 - **v1.0.3** - Fix remote image: COPY agent code + configs into Docker image so container works without bind mount.

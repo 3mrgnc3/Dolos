@@ -6,14 +6,11 @@
   "exclude_documentation_c2": true,
   "exclude_agent_icons": false,
   "remote_images": {
-    "dolos": "3mrgnc3/mythic-c2-dolos:v1.0.5"
+    "dolos": "3mrgnc3/mythic-c2-dolos:v1.0.6"
   },
   "docker-compose": {
     "environment": [
       "DOLOS_CONFIG=/Mythic/configs",
-      "DOLOS_LOG_DIR=${DOLOS_LOG_DIR}",
-      "DOLOS_LOG_MAX_MB=${DOLOS_LOG_MAX_MB}",
-      "DOLOS_LOG_MAX_BACKUPS=${DOLOS_LOG_MAX_BACKUPS}",
       "HASURA_SECRET=${HASURA_SECRET}",
       "HASURA_HOST=${HASURA_HOST}",
       "HASURA_PORT=${HASURA_PORT}"
