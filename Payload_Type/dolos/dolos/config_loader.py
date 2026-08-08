@@ -426,7 +426,7 @@ def _scaffold_sample_config():
         "timeout": 300,
         "success_string": "ENCODING_SUCCESS",
         "fail_string": "ENCODING_FAILED",
-        "install_tools": false,
+        "install_tools": False,
         "toolset": "",
         "bypass_profiles": "",
     }

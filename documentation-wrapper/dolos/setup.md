@@ -49,6 +49,7 @@ and optional bypass profiles.
 {
     "index": 0,
     "label": "PyEncoder_v1",
+    "enabled": true,
     "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
     "ssh_server": {
         "host": "192.168.1.100",
@@ -61,6 +62,10 @@ and optional bypass profiles.
         }
     },
     "timeout": 300,
+    "success_string": "ENCODING_SUCCESS",
+    "fail_string": "ENCODING_FAILED",
+    "install_tools": true,
+    "toolset": "pyencoderv1",
     "bypass_profiles": ""
 }
 ```
@@ -69,6 +74,7 @@ and optional bypass profiles.
 |-------|------|----------|-------------|
 | `index` | int | No | Display order (lower = first). Default 0. |
 | `label` | string | Yes | Name shown in the Mythic Encoder dropdown. |
+| `enabled` | bool | No | Whether this profile appears in the dropdown. Default true. |
 | `command` | string | Yes | Command template with placeholders. Must contain `{input}` and `{output}`. |
 | `ssh_server.host` | string | Yes | Hostname or IP of the remote SSH server. |
 | `ssh_server.port` | int | No | SSH port. Default 22. |
@@ -77,6 +83,10 @@ and optional bypass profiles.
 | `ssh_server.keys.enabled` | bool | No | Whether to use SSH key auth. Default false. |
 | `ssh_server.keys.path` | string | No | Relative path from the profile JSON to the private key file. |
 | `timeout` | int | No | Command timeout in seconds. Default 300. |
+| `success_string` | string | No | String in stdout confirming success. Default `ENCODING_SUCCESS`. |
+| `fail_string` | string | No | String in stdout/stderr indicating failure. Default `ENCODING_FAILED`. |
+| `install_tools` | bool | No | Whether to auto-install tools before encoding. Default false. |
+| `toolset` | string | No | Subdirectory name under `configs/tools/` for install scripts. |
 | `bypass_profiles` | string | No | Relative path from the profile JSON to a directory of bypass profile JSON files. |
 
 **Note:** The field name `"lable"` (a common typo) is also accepted and normalized to `label`.

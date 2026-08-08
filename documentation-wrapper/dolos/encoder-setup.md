@@ -108,6 +108,7 @@ is what appears in the Mythic UI dropdown.
 {
     "index": 1,
     "label": "Donut_x64",
+    "enabled": true,
     "command": "C:\\tools\\donut.exe -f 1 -i {workdir}\\{input} -o {workdir}\\{output}",
     "ssh_server": {
         "host": "192.168.1.100",
@@ -117,6 +118,10 @@ is what appears in the Mythic UI dropdown.
         "keys": {"enabled": false, "path": ""}
     },
     "timeout": 300,
+    "success_string": "ENCODING_SUCCESS",
+    "fail_string": "ENCODING_FAILED",
+    "install_tools": false,
+    "toolset": "",
     "bypass_profiles": ""
 }
 ```
@@ -127,6 +132,7 @@ is what appears in the Mythic UI dropdown.
 {
     "index": 2,
     "label": "PyEncoder_v1",
+    "enabled": true,
     "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
     "ssh_server": {
         "host": "192.168.1.100",
@@ -151,6 +157,7 @@ For encoders that support EDR evasion profiles (e.g., ShellcodePack):
 {
     "index": 3,
     "label": "ShellcodePack_v2.6",
+    "enabled": true,
     "command": "C:\\tools\\shellcodepack.exe -i {workdir}\\{input} -G {workdir}\\{output} --profile C:\\tools\\profiles\\{bypass_profile}.json",
     "ssh_server": {
         "host": "192.168.1.100",
@@ -160,6 +167,10 @@ For encoders that support EDR evasion profiles (e.g., ShellcodePack):
         "keys": {"enabled": true, "path": "../id_ed25519"}
     },
     "timeout": 600,
+    "success_string": "ENCODING_SUCCESS",
+    "fail_string": "ENCODING_FAILED",
+    "install_tools": true,
+    "toolset": "balliskit",
     "bypass_profiles": "../bypass_profiles"
 }
 ```
@@ -227,10 +238,10 @@ configs/encoders/balliskit/
 
 ### Success/Failure Detection
 
-Dolos checks for success and failure strings in the encoder's stdout:
+Dolos checks for success and failure strings in the encoder's stdout. These are configured per-encoder in `encoder_profile.json` — not in the build UI:
 
-- **Success String** (default: `ENCODING_SUCCESS`) - If found in stdout, encoding is confirmed
-- **Fail String** (default: `ENCODING_FAILED`) - If found in stdout/stderr, encoding is confirmed failed
+- **`success_string`** (default: `ENCODING_SUCCESS`) - If found in stdout, encoding is confirmed
+- **`fail_string`** (default: `ENCODING_FAILED`) - If found in stdout/stderr, encoding is confirmed failed
 
 Your encoder should print one of these to stdout:
 
@@ -241,3 +252,26 @@ print("ENCODING_SUCCESS")
 # Failure:
 print("ENCODING_FAILED: Invalid input format")
 ```
+
+### Tool Auto-Installation
+
+When `install_tools` is `true` and `toolset` is set, Dolos automatically installs required tools on the remote server before running the encoder command:
+
+1. Detects the remote OS (Windows or Linux)
+2. Uploads files from `configs/tools/{toolset}/` to the remote workdir
+3. Runs `install_windows.ps1` or `install_linux.sh`
+4. If the script fails → build fails with a clear error message
+
+Scripts are **idempotent** — if tools are already present, they exit 0 immediately.
+
+Example toolset directory:
+
+```
+configs/tools/pyencoderv1/
+├── install_windows.ps1    ← installs Python via winget
+└── install_linux.sh       ← installs Python via apt
+```
+
+If `install_tools` is `false` or `toolset` is empty, Dolos skips tool installation entirely. You can also add any additional files (scripts, configs) alongside the install scripts — they'll be uploaded to the remote workdir before the script runs.
+
+Toolset directories that only have a `SETUP.md` (like `donut_x64` and `balliskit`) are placeholders — they contain instructions for operators to set up tools manually or connect to a server where they're already installed.

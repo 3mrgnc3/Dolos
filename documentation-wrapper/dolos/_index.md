@@ -42,10 +42,10 @@ result back - all over SSH/SFTP.
   <text x="390" y="65" class="label" font-weight="bold" fill="#a855f7">Dolos Container</text>
   <text x="390" y="90" class="step">① SSH connect + auth</text>
   <text x="390" y="105" class="step">② SFTP upload payload</text>
-  <text x="390" y="120" class="step">③ SSH exec encoder</text>
-  <text x="390" y="135" class="step">④ SFTP download result</text>
-  <text x="390" y="150" class="step">⑤ SFTP cleanup workdir</text>
-  <text x="390" y="165" class="step">⑥ Store session log</text>
+  <text x="390" y="120" class="step">③ Install tools (if configured)</text>
+  <text x="390" y="135" class="step">④ SSH exec encoder</text>
+  <text x="390" y="150" class="step">⑤ SFTP download result</text>
+  <text x="390" y="165" class="step">⑥ SFTP cleanup workdir</text>
 
   <!-- Remote Server -->
   <rect x="550" y="40" width="220" height="140" class="box" fill="#1e3a2a" stroke="#22c55e"/>
@@ -88,7 +88,7 @@ result back - all over SSH/SFTP.
   <text x="560" y="355" class="title" font-size="10">Forensic timestamps</text>
 </svg>
 
-**Current version: v0.11.0**
+**Current version: v0.13.0**
 
 ### Quick Start
 
@@ -127,10 +127,11 @@ detection, and cleanup - all with ISO 8601 timestamps and elapsed time.
 
 - **Per-profile SSH config** - Each encoder profile has its own SSH server, credentials, and command
 - **Bypass profiles** - Encoders like ShellcodePack can use bypass profiles that appear as a dropdown
+- **Auto-install tools** - Idempotent install scripts run on the remote server before encoding
 - **Native wrapper flow** - Select payload via Mythic's built-in selector (no file dropdown)
 - **No C2 profile selection** - The wrapped payload already has its C2; Dolos just transforms it
 - **Full session logging** - Every SSH/SFTP event captured as a JSON artifact with timestamps
-- **Success/failure detection** - Exit code, output file existence, and configurable success/failure strings
+- **Success/failure detection** - Per-encoder, configurable success/fail strings in profile JSON
 - **Automatic workdir cleanup** - Random temp directory per build, deleted after completion
 - **Build progress steps** - 9 steps reported in the UI with ✅/❌ status indicators
 - **Config-file based** - No more editing `.env` for encoder commands or SSH credentials
