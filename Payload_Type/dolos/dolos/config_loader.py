@@ -46,6 +46,8 @@ class EncoderProfile:
     bypass_stems: list[str]          # stem names e.g. "cortex_bypass_profile" for template resolution
     profile_dir: str                 # directory containing this encoder_profile.json
     timeout: int                     # command timeout in seconds (per-profile)
+    success_string: str               # string in stdout confirming success
+    fail_string: str                  # string in stdout/stderr indicating failure
     valid: bool
     validation_errors: list[str]
 
@@ -271,6 +273,10 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
     # Timeout (per-encoder, replaces the old env-var DOLOS_TIMEOUT)
     timeout = int(data.get("timeout", 300))
 
+    # Success/fail strings (per-encoder, fixed constants that match the encoder's output)
+    success_string = str(data.get("success_string", "ENCODING_SUCCESS"))
+    fail_string = str(data.get("fail_string", "ENCODING_FAILED"))
+
     # Bypass profiles
     bypass_profiles_relative = data.get("bypass_profiles", "")
     bypass_profiles_path = ""
@@ -378,6 +384,8 @@ def _parse_profile(profile_path: str, seen_labels: set) -> Optional[EncoderProfi
         bypass_stems=bypass_stems,
         profile_dir=profile_dir,
         timeout=timeout,
+        success_string=success_string,
+        fail_string=fail_string,
         valid=valid,
         validation_errors=validation_errors,
     )
@@ -408,6 +416,8 @@ def _scaffold_sample_config():
             "keys": {"enabled": False, "path": ""},
         },
         "timeout": 300,
+        "success_string": "ENCODING_SUCCESS",
+        "fail_string": "ENCODING_FAILED",
         "bypass_profiles": "",
     }
 

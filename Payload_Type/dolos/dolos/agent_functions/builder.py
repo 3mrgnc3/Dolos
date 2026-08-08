@@ -10,10 +10,10 @@ by Mythic. No file-dropdown, no GraphQL file lookup, no monkey-patch needed.
 Build parameters:
   - Encoder (ChooseOne from encoder profiles in configs/)
   - Bypass Profile (ChooseOne, shown only when encoder has bypass profiles)
-  - Timeout (Number, default from encoder profile)
-  - Success String (String, default "ENCODING_SUCCESS")
-  - Fail String (String, default "ENCODING_FAILED")
+  - Timeout (Number, 0 = use encoder profile default)
   - Regenerate Shellcode (Boolean, default True)
+
+Success/fail strings come from the encoder profile JSON, not the UI.
 
 SSH config, encoder commands, and bypass profiles are loaded from
 encoder_profile.json files in the configs/ directory (mounted at
@@ -198,31 +198,11 @@ class Dolos(PayloadType):
             parameter_type=BuildParameterType.Number,
             description=(
                 "Timeout in seconds for the remote command. "
-                "Overrides the encoder profile's default timeout if set."
+                "Set to 0 to use the encoder profile's default timeout. "
+"Overriding here is for one-off builds; to change the default, "
+                "edit the encoder_profile.json on the server."
             ),
             default_value=0,
-            required=False,
-            group_name="Remote Command",
-        ),
-        BuildParameter(
-            name="Success String",
-            parameter_type=BuildParameterType.String,
-            description=(
-                "String to search for in stdout to confirm success. "
-                "Critical for pipeline logic - determines when to initiate file transfer."
-            ),
-            default_value="ENCODING_SUCCESS",
-            required=False,
-            group_name="Remote Command",
-        ),
-        BuildParameter(
-            name="Fail String",
-            parameter_type=BuildParameterType.String,
-            description=(
-                "String to search for in stdout/stderr to detect failure. "
-                "If found, the build is marked as failed regardless of exit code."
-            ),
-            default_value="ENCODING_FAILED",
             required=False,
             group_name="Remote Command",
         ),
@@ -270,8 +250,6 @@ class Dolos(PayloadType):
         encoder_label = (self.get_parameter("Encoder") or "").strip()
         bypass_display = (self.get_parameter("Bypass Profile") or "(None)").strip()
         timeout_override = int(self.get_parameter("Timeout") or 0)
-        success_string = (self.get_parameter("Success String") or "").strip()
-        failure_string = (self.get_parameter("Fail String") or "").strip()
         regenerate = self.get_parameter("Regenerate Shellcode") or False
 
         # ── Validate: wrapped payload must be present ──
@@ -310,6 +288,8 @@ class Dolos(PayloadType):
 
         # Determine timeout: use profile default unless overridden by build param
         timeout = timeout_override if timeout_override > 0 else profile.timeout
+        success_string = profile.success_string
+        failure_string = profile.fail_string
 
         # Determine bypass profile stem for command placeholder
         bypass_stem = ""
