@@ -14,10 +14,11 @@ Build parameters:
   - Success String (String, default "ENCODING_SUCCESS")
   - Fail String (String, default "ENCODING_FAILED")
   - Regenerate Shellcode (Boolean, default True)
-  - Upload New Profile (Boolean, reveals file upload fields when True)
+  - Upload New Profile (Boolean, reveals profile creation fields when True)
   - New Encoder Name (String, hidden unless Upload New Profile is True)
   - Encoder Profile JSON (File, hidden unless Upload New Profile is True)
   - Includes Bypass Profiles (Boolean, hidden unless Upload New Profile is True)
+  - Bypass Profile Files (FileMultiple, hidden unless both Upload and Bypass toggles are ON)
   - Supporting Files (FileMultiple, hidden unless Upload New Profile is True)
   - SSH Key File (File, hidden unless Upload New Profile is True)
 
@@ -179,6 +180,13 @@ class Dolos(PayloadType):
             choices=_ENCODER_CHOICES,
             dynamic_query_function=_query_encoders,
             group_name="Remote Command",
+            hide_conditions=[
+                HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.EQ,
+                    value=True,
+                )
+            ],
         ),
         BuildParameter(
             name="Bypass Profile",
@@ -193,11 +201,17 @@ class Dolos(PayloadType):
             dynamic_query_function=_query_bypass_profiles,
             hide_conditions=[
                 HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.EQ,
+                    value=True,
+                ),
+            ] + ([
+                HideCondition(
                     name="Encoder",
                     operand=HideConditionOperand.NotIN,
                     choices=_ENCODERS_WITH_BYPASS,
                 )
-            ] if _ENCODERS_WITH_BYPASS else [],
+            ] if _ENCODERS_WITH_BYPASS else []),
             group_name="Remote Command",
         ),
         BuildParameter(
@@ -210,6 +224,13 @@ class Dolos(PayloadType):
             default_value=0,
             required=False,
             group_name="Remote Command",
+            hide_conditions=[
+                HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.EQ,
+                    value=True,
+                )
+            ],
         ),
         BuildParameter(
             name="Success String",
@@ -221,6 +242,13 @@ class Dolos(PayloadType):
             default_value="ENCODING_SUCCESS",
             required=False,
             group_name="Remote Command",
+            hide_conditions=[
+                HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.EQ,
+                    value=True,
+                )
+            ],
         ),
         BuildParameter(
             name="Fail String",
@@ -232,6 +260,13 @@ class Dolos(PayloadType):
             default_value="ENCODING_FAILED",
             required=False,
             group_name="Remote Command",
+            hide_conditions=[
+                HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.EQ,
+                    value=True,
+                )
+            ],
         ),
         BuildParameter(
             name="Regenerate Shellcode",
@@ -245,6 +280,13 @@ class Dolos(PayloadType):
             default_value=True,
             required=False,
             group_name="Deduplication",
+            hide_conditions=[
+                HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.EQ,
+                    value=True,
+                )
+            ],
         ),
         # ── Profile Upload group ──
         # Hidden by default. Toggle "Upload New Profile" to ON to reveal
@@ -305,9 +347,8 @@ class Dolos(PayloadType):
             name="Includes Bypass Profiles",
             parameter_type=BuildParameterType.Boolean,
             description=(
-                "Toggle ON if you are also uploading bypass profile JSON files. "
-                "This creates the bypass_profiles/ subdirectory inside the encoder directory "
-                "and the Supporting Files upload will place files there."
+                "Toggle ON to create a bypass_profiles/ subdirectory and reveal the "
+                "Bypass Profile Files upload field below."
             ),
             default_value=False,
             required=False,
@@ -321,13 +362,34 @@ class Dolos(PayloadType):
             ],
         ),
         BuildParameter(
+            name="Bypass Profile Files",
+            parameter_type=BuildParameterType.FileMultiple,
+            description=(
+                "Upload bypass profile JSON files. These are stored in "
+                "configs/encoders/{name}/bypass_profiles/. "
+                "Only visible when Includes Bypass Profiles is ON."
+            ),
+            required=False,
+            group_name="Profile Upload",
+            hide_conditions=[
+                HideCondition(
+                    name="Upload New Profile",
+                    operand=HideConditionOperand.NotEQ,
+                    value=True,
+                ),
+                HideCondition(
+                    name="Includes Bypass Profiles",
+                    operand=HideConditionOperand.NotEQ,
+                    value=True,
+                ),
+            ],
+        ),
+        BuildParameter(
             name="Supporting Files",
             parameter_type=BuildParameterType.FileMultiple,
             description=(
-                "Upload bypass profile JSON files (or any supporting files). "
-                "If 'Includes Bypass Profiles' is ON, these files are stored in the "
-                "bypass_profiles/ subdirectory. Otherwise they go in the encoder directory. "
-                "Multiple files can be selected."
+                "Upload any additional supporting files for the encoder. "
+                "These are stored in the encoder's directory. Multiple files can be selected."
             ),
             required=False,
             group_name="Profile Upload",
@@ -402,6 +464,7 @@ class Dolos(PayloadType):
             new_encoder_name = (self.get_parameter("New Encoder Name") or "").strip()
             encoder_json_uuid = self.get_parameter("Encoder Profile JSON") or ""
             includes_bypass = self.get_parameter("Includes Bypass Profiles") or False
+            bypass_profile_uuids = self.get_parameter("Bypass Profile Files") or []
             supporting_uuids = self.get_parameter("Supporting Files") or []
             ssh_key_uuid = self.get_parameter("SSH Key File") or ""
 
@@ -490,11 +553,51 @@ class Dolos(PayloadType):
                             with open(ep_path, "w") as f:
                                 json.dump(ep_data, f, indent=4)
 
-            # Process supporting files (bypass profile JSONs etc.)
+            # Process bypass profile files (only when Includes Bypass Profiles is ON)
+            if includes_bypass and bypass_profile_uuids:
+                if isinstance(bypass_profile_uuids, str):
+                    bypass_profile_uuids = [bypass_profile_uuids]
+                for idx, file_uuid in enumerate(bypass_profile_uuids):
+                    try:
+                        file_resp = await SendMythicRPCFileGetContent(
+                            MythicRPCFileGetContentMessage(AgentFileID=file_uuid)
+                        )
+                        if not file_resp.Success:
+                            logger.warning("[DOLOS-BUILD] Failed to read bypass profile file %d: %s", idx, file_resp.Error)
+                            continue
+                        file_content = file_resp.Content
+
+                        # Get the original filename from Mythic
+                        file_name = f"bypass_profile_{idx}.json"
+                        try:
+                            search_resp = await SendMythicRPCFileSearch(
+                                MythicRPCFileSearchMessage(AgentFileID=file_uuid)
+                            )
+                            if search_resp.Success and search_resp.Files:
+                                file_name = os.path.basename(search_resp.Files[0].filename or f"bypass_profile_{idx}.json")
+                        except Exception:
+                            pass
+
+                        rel_path = f"encoders/{new_encoder_name}/bypass_profiles/{file_name}"
+                        config_loader.write_uploaded_file(rel_path, file_content)
+                        logger.info("[DOLOS-BUILD] Wrote bypass profile file: %s", rel_path)
+
+                        # Also update encoder profile to reference bypass_profiles if not set
+                        ep_path = os.path.join(config_loader.CONFIG_DIR, "encoders", new_encoder_name, "encoder_profile.json")
+                        if os.path.exists(ep_path):
+                            with open(ep_path, "r") as f:
+                                ep_data = json.load(f)
+                            if not ep_data.get("bypass_profiles"):
+                                ep_data["bypass_profiles"] = "bypass_profiles"
+                                with open(ep_path, "w") as f:
+                                    json.dump(ep_data, f, indent=4)
+                    except Exception as e:
+                        logger.warning("[DOLOS-BUILD] Failed to process bypass profile file %d: %s", idx, e)
+
+            # Process supporting files (always go to encoder directory)
             if supporting_uuids:
                 if isinstance(supporting_uuids, str):
                     supporting_uuids = [supporting_uuids]
-                dest_dir = "bypass_profiles" if includes_bypass else ""
                 for idx, file_uuid in enumerate(supporting_uuids):
                     try:
                         file_resp = await SendMythicRPCFileGetContent(
@@ -512,16 +615,11 @@ class Dolos(PayloadType):
                                 MythicRPCFileSearchMessage(AgentFileID=file_uuid)
                             )
                             if search_resp.Success and search_resp.Files:
-                                file_name = search_resp.Files[0].filename or f"supporting_file_{idx}"
-                                # Sanitize filename to prevent path traversal
-                                file_name = os.path.basename(file_name)
+                                file_name = os.path.basename(search_resp.Files[0].filename or f"supporting_file_{idx}")
                         except Exception:
                             pass
 
-                        if dest_dir:
-                            rel_path = f"encoders/{new_encoder_name}/bypass_profiles/{file_name}"
-                        else:
-                            rel_path = f"encoders/{new_encoder_name}/{file_name}"
+                        rel_path = f"encoders/{new_encoder_name}/{file_name}"
                         config_loader.write_uploaded_file(rel_path, file_content)
                         logger.info("[DOLOS-BUILD] Wrote supporting file: %s", rel_path)
                     except Exception as e:
