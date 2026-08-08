@@ -1,6 +1,6 @@
 # <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos - The Craftsman of Lies
 
-**Mythic wrapper payload type - encode shellcode on your own remote/external infrastructure with traditional scripting and tools.**
+**[Mythic](https://github.com/its-a-feature/Mythic) wrapper payload type - encode shellcode on your own remote/external infrastructure with traditional scripting and tools.**
 
 Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself - the remote encoder does all the work.
 
