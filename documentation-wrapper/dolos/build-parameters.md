@@ -7,7 +7,7 @@ weight = 20
 
 When you create a Dolos wrapper, you'll see these parameters organized by group.
 The **wrapped payload is selected separately** via Mythic's native "Create Wrapper"
-flow — it's not a build parameter.
+flow - it's not a build parameter.
 
 <svg viewBox="0 0 600 310" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:600px;">
   <rect width="600" height="310" rx="12" fill="#1a1d23" stroke="#2a2f3a" stroke-width="1"/>
@@ -20,7 +20,7 @@ flow — it's not a build parameter.
 
   <!-- No C2 Profile section -->
   <rect x="30" y="105" width="540" height="30" rx="6" fill="#2a1e1e" stroke="#666" stroke-width="1" stroke-dasharray="4"/>
-  <text x="300" y="125" font-family="system-ui" font-size="11" fill="#666" text-anchor="middle">✕ No C2 Profile selection — C2 is in the wrapped payload</text>
+  <text x="300" y="125" font-family="system-ui" font-size="11" fill="#666" text-anchor="middle">✕ No C2 Profile selection - C2 is in the wrapped payload</text>
 
   <!-- Build params -->
   <rect x="30" y="150" width="540" height="40" rx="6" fill="#252d3d" stroke="#4a9eff" stroke-width="1"/>
@@ -80,7 +80,7 @@ This avoids duplicate-callback confusion. Disable to proceed with the same shell
 
 ### Per-Encoder Settings (not in the UI)
 
-These settings come from `encoder_profile.json` — they're not editable in the build dialog
+These settings come from `encoder_profile.json` - they're not editable in the build dialog
 because they're constants tied to each encoder:
 
 | Setting | Default | Description |
@@ -92,7 +92,7 @@ because they're constants tied to each encoder:
 
 ### No SSH Input Fields
 
-SSH configuration is read from encoder profiles — there are no SSH input fields
+SSH configuration is read from encoder profiles - there are no SSH input fields
 in the build dialog. Each encoder profile specifies its own server, credentials,
 and command. The build steps automatically verify:
 

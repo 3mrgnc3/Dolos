@@ -564,7 +564,7 @@ class Dolos(PayloadType):
                 # Upload toolset files to the remote workdir
                 for tool_file in toolset_files:
                     tool_filename = os.path.basename(tool_file)
-                    # Don't upload the install script itself yet — we'll upload it separately
+                    # Don't upload the install script itself yet - we'll upload it separately
                     if install_script and os.path.abspath(tool_file) == os.path.abspath(install_script):
                         continue
                     try:
@@ -637,9 +637,9 @@ class Dolos(PayloadType):
                         client.close()
                         return resp
                 else:
-                    logger.info("[DOLOS-BUILD] No install script found for OS=%s, toolset=%s — skipping installation", remote_os, toolset_name)
+                    logger.info("[DOLOS-BUILD] No install script found for OS=%s, toolset=%s - skipping installation", remote_os, toolset_name)
                     await self._step("Preparing",
-                        f"No install script for {remote_os} in toolset '{toolset_name}' — skipping", True)
+                        f"No install script for {remote_os} in toolset '{toolset_name}' - skipping", True)
             else:
                 logger.info("[DOLOS-BUILD] No install script or toolset files found for '%s'", profile.toolset)
         else:

@@ -238,7 +238,7 @@ configs/encoders/balliskit/
 
 ### Success/Failure Detection
 
-Dolos checks for success and failure strings in the encoder's stdout. These are configured per-encoder in `encoder_profile.json` — not in the build UI:
+Dolos checks for success and failure strings in the encoder's stdout. These are configured per-encoder in `encoder_profile.json` - not in the build UI:
 
 - **`success_string`** (default: `ENCODING_SUCCESS`) - If found in stdout, encoding is confirmed
 - **`fail_string`** (default: `ENCODING_FAILED`) - If found in stdout/stderr, encoding is confirmed failed
@@ -262,7 +262,7 @@ When `install_tools` is `true` and `toolset` is set, Dolos automatically install
 3. Runs `install_windows.ps1` or `install_linux.sh`
 4. If the script fails → build fails with a clear error message
 
-Scripts are **idempotent** — if tools are already present, they exit 0 immediately.
+Scripts are **idempotent** - if tools are already present, they exit 0 immediately.
 
 Example toolset directory:
 
@@ -272,6 +272,6 @@ configs/tools/pyencoderv1/
 └── install_linux.sh       ← installs Python via apt
 ```
 
-If `install_tools` is `false` or `toolset` is empty, Dolos skips tool installation entirely. You can also add any additional files (scripts, configs) alongside the install scripts — they'll be uploaded to the remote workdir before the script runs.
+If `install_tools` is `false` or `toolset` is empty, Dolos skips tool installation entirely. You can also add any additional files (scripts, configs) alongside the install scripts - they'll be uploaded to the remote workdir before the script runs.
 
-Toolset directories that only have a `SETUP.md` (like `donut_x64` and `balliskit`) are placeholders — they contain instructions for operators to set up tools manually or connect to a server where they're already installed.
+Toolset directories that only have a `SETUP.md` (like `donut_x64` and `balliskit`) are placeholders - they contain instructions for operators to set up tools manually or connect to a server where they're already installed.

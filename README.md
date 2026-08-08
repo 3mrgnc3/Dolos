@@ -1,8 +1,8 @@
 # <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos - The Craftsman of Lies
 
-**Mythic wrapper payload type — encode shellcode on your own infrastructure.**
+**Mythic wrapper payload type - encode shellcode on your own infrastructure.**
 
-Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself — the remote encoder does all the work.
+Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself - the remote encoder does all the work.
 
 ---
 
@@ -10,7 +10,7 @@ Dolos takes an existing built payload, transfers it to an external server over S
 
 ### 1. Configure encoder profiles
 
-Edit `Payload_Type/dolos/configs/encoders/` — each subdirectory has an `encoder_profile.json`:
+Edit `Payload_Type/dolos/configs/encoders/` - each subdirectory has an `encoder_profile.json`:
 
 ```json
 {
@@ -79,8 +79,8 @@ Private keys and passwords are **gitignored**. The repo ships a sample `pyencode
 
 ## Changelog
 
-- **v0.13.0** — Auto-install tools on remote servers. Success/fail strings in profile JSON. ChooseOneCustom timeout.
-- **v0.11.0** — File-based multi-profile config. Per-profile SSH, bypass profiles, auto-scaffold.
-- **v0.10.0** — Shellcode deduplication via Hasura + MythicRPC. Auto-rebuild with fresh UUID.
-- **v0.9.0** — SSH key authentication. `Regenerate Shellcode` build param.
-- **v0.5.1** — `resp.payload` lowercase fix.
+- **v0.13.0** - Auto-install tools on remote servers. Success/fail strings in profile JSON. ChooseOneCustom timeout.
+- **v0.11.0** - File-based multi-profile config. Per-profile SSH, bypass profiles, auto-scaffold.
+- **v0.10.0** - Shellcode deduplication via Hasura + MythicRPC. Auto-rebuild with fresh UUID.
+- **v0.9.0** - SSH key authentication. `Regenerate Shellcode` build param.
+- **v0.5.1** - `resp.payload` lowercase fix.
