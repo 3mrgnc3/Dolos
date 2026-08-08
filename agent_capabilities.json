@@ -3,10 +3,10 @@
   "languages": ["Any & All"],
   "features": {
     "mythic": ["wrapper"],
-    "custom": ["remote-encoding", "ssh-transfer", "session-log","uuid-linking","auto-regen-shellcode"]
+    "custom": ["remote-encoding", "ssh-transfer", "session-log", "uuid-linking", "auto-regen-shellcode"]
   },
-  "payload_output": ["exe", "dll", "bin", "elf","Any"],
-  "architectures": ["x86_64", "aarch64","x86","arm64","arm","mips","mipsel"],
+  "payload_output": ["exe", "dll", "bin", "elf", "Any"],
+  "architectures": ["x86_64", "aarch64", "x86", "arm64", "arm", "mips", "mipsel"],
   "c2": [],
   "mythic_version": "3.3",
   "agent_version": "1.0.1",
