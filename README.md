@@ -4,7 +4,7 @@
 
 Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself - the remote encoder does all the work.
 
-e.g connect to your own licence copy or [Balliskit's ShellcodePack](https://balliskit.com/) tools and have all the processing and logs ingested automatically into Mythic's database.
+e.g connect to your own licenced copy of [Balliskit's ShellcodePack](https://balliskit.com/) tools and have all the processing and logs ingested automatically into Mythic's database.
 
 ---
 
