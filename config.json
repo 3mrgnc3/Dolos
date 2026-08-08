@@ -6,7 +6,7 @@
   "exclude_documentation_c2": true,
   "exclude_agent_icons": false,
   "remote_images": {
-    "dolos": "3mrgnc3/mythic-c2-dolos:v1.0.1"
+    "dolos": "3mrgnc3/mythic-c2-dolos:v1.0.2"
   },
   "docker-compose": {
     "environment": [

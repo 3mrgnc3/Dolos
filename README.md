@@ -95,6 +95,7 @@ Private keys and passwords are **gitignored**. The repo ships a sample `pyencode
 
 ## Changelog
 
+- **v1.0.2** - Public release. Removed dev tools, config templates. Fresh Docker build.
 - **v1.0.1** - Public release. MythicMeta-compliant repo structure, pre-built Docker Hub image, Apache 2.0 license.
 - **v1.0.0** - Public release. Remote encoder via SSH/SFTP, session logging, config hot-reload.
 - **v0.13.0** - Auto-install tools on remote servers. Success/fail strings in profile JSON. ChooseOneCustom timeout.
