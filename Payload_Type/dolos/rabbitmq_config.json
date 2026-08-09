@@ -1,0 +1,5 @@
+{
+  "rabbitmq_host": "mythic_rabbitmq",
+  "mythic_server_host": "mythic_server",
+  "debug_level": "warning"
+}
