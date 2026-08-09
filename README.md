@@ -7,8 +7,7 @@ Dolos takes an existing built payload, transfers it to an external server over S
 e.g connect to your own licenced copy of [Balliskit's ShellcodePack](https://balliskit.com/) tools and have all the processing and logs ingested automatically into Mythic's database.
 
 ---
-
-## Quick Start
+## <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Quick Start
 
 ### 1. Configure encoder profiles
 
