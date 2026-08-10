@@ -83,12 +83,26 @@ logger = logging.getLogger("dolos")
 # signals a coroutine on mythic's event loop to reload profiles and force a
 # Mythic payload type re-sync. This updates dropdown choices without restart.
 
-_CONFIG_CHECK_INTERVAL = 5  # seconds between mtime checks
+_CONFIG_CHECK_INTERVAL = 10  # seconds between mtime checks
+_MIN_RESYNC_INTERVAL = 60  # minimum seconds between actual Mythic resyncs
+_last_resync_time: float = 0.0  # timestamp of last successful resync
 _pending_resync = threading.Event()
 
 
 async def _do_resync():
     """Re-read config, update build params, and force Mythic re-sync."""
+    global _last_resync_time
+
+    import time as _time
+    now = _time.monotonic()
+    elapsed = now - _last_resync_time
+    if _last_resync_time > 0 and elapsed < _MIN_RESYNC_INTERVAL:
+        logger.info(
+            "[DOLOS-WATCHER] Skipping resync — only %.0fs since last sync (minimum %ds).",
+            elapsed, _MIN_RESYNC_INTERVAL,
+        )
+        return
+
     from dolos.agent_functions.builder import _update_build_params
     from mythic_container.PayloadBuilder import SendMythicRPCSyncPayloadType
 
@@ -109,6 +123,7 @@ async def _do_resync():
             logger.critical("[DOLOS-WATCHER]   %s [INVALID: %s]", p.label, "; ".join(p.validation_errors))
     _update_build_params()
     result = await SendMythicRPCSyncPayloadType("dolos", [])
+    _last_resync_time = _time.monotonic()
     logger.critical("[DOLOS-WATCHER] Mythic re-sync result: %s", result)
 
 

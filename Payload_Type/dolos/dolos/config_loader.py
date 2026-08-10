@@ -106,8 +106,20 @@ def _check_mtimes() -> bool:
                 return True
 
     # New files or removed files
+    # Only compare keys that both _check_mtimes and load_profiles agree on.
+    # _profile_mtimes stores profile JSON files + all files under the config tree.
+    # We track the same set here, so keys should match after load_profiles() populates
+    # _profile_mtimes. A mismatch means files were added/removed.
     if set(current_mtimes.keys()) != set(_profile_mtimes.keys()):
-        return True
+        # But only trigger resync if the DIFFERENCE includes profile-relevant files.
+        # Stray .gitkeep or temp files shouldn't cause a full resync.
+        # If _profile_mtimes is empty (first-run), always trigger.
+        if not _profile_mtimes:
+            return True
+        new_keys = set(current_mtimes.keys()) - set(_profile_mtimes.keys())
+        removed_keys = set(_profile_mtimes.keys()) - set(current_mtimes.keys())
+        if new_keys or removed_keys:
+            return True
 
     # Modified files
     for path, mtime in current_mtimes.items():
@@ -198,14 +210,30 @@ def load_profiles() -> list[EncoderProfile]:
 
     _profiles = profiles
 
-    # Store mtimes for auto-reload detection
+    # Store mtimes for auto-reload detection.
+    # Must track the SAME set of files that _check_mtimes() tracks, otherwise
+    # there's a permanent key-set mismatch that triggers resync every poll.
     global _profile_mtimes
     _profile_mtimes = {}
+
+    # Profile JSON files
     for pf in profile_files:
         try:
             _profile_mtimes[pf] = os.path.getmtime(pf)
         except OSError:
             pass
+
+    # All other files under the config tree (bypass profiles, SSH keys, tools, etc.)
+    config_dir_abs = os.path.abspath(CONFIG_DIR)
+    for root, _dirs, files in os.walk(config_dir_abs):
+        for fname in files:
+            fpath = os.path.join(root, fname)
+            if fname == "encoder_profile.json":
+                continue  # already tracked above
+            try:
+                _profile_mtimes[fpath] = os.path.getmtime(fpath)
+            except OSError:
+                pass
 
     return _profiles
 
