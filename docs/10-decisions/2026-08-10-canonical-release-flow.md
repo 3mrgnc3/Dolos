@@ -14,9 +14,9 @@ When developing Mythic service packages (payload types, C2 profiles, wrapper typ
 1. **Fix the code** in the local repo
 2. **Bump the version** in `agent_capabilities.json`
 3. **Update `config.json`** `remote_images` tag to match the new version
-4. **Build the Docker image** locally with the new tag (`docker build -t user/repo:vX.Y.Z`)
-5. **Push the Docker image** to Docker Hub (`docker push user/repo:vX.Y.Z`)
-6. **Commit and push** all changes (code + version bumps + config) to GitHub
+4. **Build the Docker image** locally with the new tag (`docker build -t user/repo:vX.Y.Z`) — no `sudo`
+5. **Push the Docker image** to Docker Hub (`docker push user/repo:vX.Y.Z`) — **never `sudo docker push`** — run as the user so cached Docker Hub credentials are used, not root's
+6. **Commit and push** all changes (code + version bumps + config) to GitHub — **never `sudo git push`** — run as the user so cached Git credentials are used, not root's
 7. **Uninstall** the old version from Mythic (`mythic-cli uninstall`)
 8. **Reinstall from GitHub** the canonical way (`mythic-cli install github ...`)
 9. **Verify the bug is gone** in the freshly installed instance
