@@ -1,17 +1,17 @@
-"""Dolos service entry point.
+"""Dolos v2 service entry point.
 
-A Mythic wrapper payload type - encoder choices loaded from configs/ directory
-(encoder_profile.json files) instead of environment variables.
+Flat-file config in /Mythic/configs/ (paperclip-editable).
+SSH keys via Mythic User Secrets (self.secrets).
+No scaffolding, no sample configs, no directory traversal.
 
-Config hot-reload: a background thread polls for file changes and signals a
-resync coroutine running on mythic_container's event loop. Editing files in
-dolos_profiles/ on the host causes the Mythic UI dropdowns to update
-without a container restart.
+Config hot-reload: background thread polls mtime, signals resync
+coroutine on mythic's event loop. Editing files via paperclip
+causes dropdowns to update without container restart.
 
 Local debugging:
-  Set RABBITMQ_CONFIG=local to use rabbitmq_config.local.json.
-  Set DOLOS_DEV_MODE=1 to disable SSL verification for self-signed certs.
-  Set DOLOS_CONFIG to the absolute path of the configs/ directory.
+  RABBITMQ_CONFIG=local — use rabbitmq_config.local.json
+  DOLOS_DEV_MODE=1 — disable SSL verification
+  DOLOS_CONFIG=/path/to/configs — override config directory
 """
 
 import asyncio
@@ -24,8 +24,7 @@ import time
 
 mythic_container_dir = os.path.dirname(os.path.abspath(__file__))
 
-# ── Local debugging: use a local rabbitmq_config if RABBITMQ_CONFIG=local ──
-
+# ── Local debugging ──
 if os.environ.get("RABBITMQ_CONFIG") == "local":
     local_config = os.path.join(mythic_container_dir, "rabbitmq_config.local.json")
     default_config = os.path.join(mythic_container_dir, "rabbitmq_config.json")
@@ -35,72 +34,40 @@ if os.environ.get("RABBITMQ_CONFIG") == "local":
         print(f"[DOLOS] Using local RabbitMQ config: {local_config}")
     else:
         print(f"[DOLOS] WARNING: RABBITMQ_CONFIG=local but {local_config} not found")
-        print(f"[DOLOS] Running inside Docker - RABBITMQ_* env vars are set by mythic-cli, no config file needed.")
-        print(f"[DOLOS] For local dev, create rabbitmq_config.local.json in InstalledServices/dolos/")
-
-# ── Development mode: disable SSL verification for self-signed certs ──
 
 if os.environ.get("DOLOS_DEV_MODE") == "1":
     ssl._create_default_https_context = ssl._create_unverified_context
-    print("[DOLOS] DEV MODE: SSL verification disabled (self-signed certs allowed)")
+    print("[DOLOS] DEV MODE: SSL verification disabled")
 
-# ── Load and validate encoder profiles before starting ──
-
+# ── Load encoder profiles before starting ──
 from dolos import config_loader
 
-# Auto-scaffold sample config if needed
-config_loader.scaffold_if_needed()
-
-# Load and log profile summary
 profiles = config_loader.load_profiles()
 valid_count = sum(1 for p in profiles if p.valid)
-invalid_count = len(profiles) - valid_count
 
 if valid_count == 0:
-    print(f"[DOLOS] WARNING: No valid encoder profiles found. Builds will fail until config is fixed.")
-    print(f"[DOLOS] Edit configs in: {config_loader.CONFIG_DIR}")
+    print(f"[DOLOS] WARNING: No valid encoder profiles. Create NN_Encoder_*.json files in {config_loader.CONFIG_DIR}")
 else:
-    print(f"[DOLOS] Loaded {len(profiles)} encoder profile(s): {valid_count} valid, {invalid_count} with errors")
-    for p in profiles:
-        if not p.enabled:
-            print(f"[DOLOS]   {p.label} [DISABLED]")
-            continue
-        status = "VALID" if p.valid else f"INVALID: {'; '.join(p.validation_errors)}"
-        bypass_info = f", {len(p.bypass_profiles)} bypass profiles" if p.bypass_profiles else ""
-        print(f"[DOLOS]   {p.label} [{status}{bypass_info}]")
+    print(f"[DOLOS] Loaded {len(profiles)} encoder profile(s): {valid_count} valid")
 
 import mythic_container
 import dolos  # noqa: F401 - triggers __init__.py which imports builder.py
 
 logger = logging.getLogger("dolos")
 
-# ── Config watcher: detect file changes and re-sync with Mythic ──
-#
-# Mythic's React UI does NOT call dynamic_query_function for build parameters.
-# Build parameter choices are set once at container sync and cached by the frontend.
-#
-# Solution: a background thread polls for file changes. When detected, it
-# signals a coroutine on mythic's event loop to reload profiles and force a
-# Mythic payload type re-sync. This updates dropdown choices without restart.
-
-_CONFIG_CHECK_INTERVAL = 10  # seconds between mtime checks
-_MIN_RESYNC_INTERVAL = 60  # minimum seconds between actual Mythic resyncs
-_last_resync_time: float = 0.0  # timestamp of last successful resync
+# ── Config watcher ──
+_CONFIG_CHECK_INTERVAL = 10
+_MIN_RESYNC_INTERVAL = 60
+_last_resync_time: float = 0.0
 _pending_resync = threading.Event()
 
 
 async def _do_resync():
-    """Re-read config, update build params, and force Mythic re-sync."""
     global _last_resync_time
-
-    import time as _time
-    now = _time.monotonic()
+    now = time.monotonic()
     elapsed = now - _last_resync_time
     if _last_resync_time > 0 and elapsed < _MIN_RESYNC_INTERVAL:
-        logger.info(
-            "[DOLOS-WATCHER] Skipping resync — only %.0fs since last sync (minimum %ds).",
-            elapsed, _MIN_RESYNC_INTERVAL,
-        )
+        logger.info("[DOLOS-WATCHER] Skipping resync — only %.0fs since last", elapsed)
         return
 
     from dolos.agent_functions.builder import _update_build_params
@@ -109,26 +76,20 @@ async def _do_resync():
     config_loader._reset_cache()
     profiles = config_loader.load_profiles()
     valid = sum(1 for p in profiles if p.valid)
-    logger.critical(
-        "[DOLOS-WATCHER] Reloaded %d profile(s): %d valid, %d with errors",
-        len(profiles), valid, len(profiles) - valid,
-    )
+    logger.critical("[DOLOS-WATCHER] Reloaded %d profile(s): %d valid", len(profiles), valid)
     for p in profiles:
-        if not p.enabled:
-            logger.critical("[DOLOS-WATCHER]   %s [DISABLED]", p.label)
-        elif p.valid:
-            bypass_info = f", {len(p.bypass_profiles)} bypass" if p.bypass_profiles else ""
-            logger.critical("[DOLOS-WATCHER]   %s [VALID%s]", p.label, bypass_info)
-        else:
-            logger.critical("[DOLOS-WATCHER]   %s [INVALID: %s]", p.label, "; ".join(p.validation_errors))
+        state = "ENABLED" if p.enabled else "DISABLED"
+        status = "VALID" if p.valid else f"INVALID: {'; '.join(p.validation_errors)}"
+        bypass_info = f", {len(p.bypass_profiles)} bypass" if p.bypass_profiles else ""
+        logger.critical("[DOLOS-WATCHER]   %s [%s %s%s]", p.label, state, status, bypass_info)
+
     _update_build_params()
     result = await SendMythicRPCSyncPayloadType("dolos", [])
-    _last_resync_time = _time.monotonic()
+    _last_resync_time = time.monotonic()
     logger.critical("[DOLOS-WATCHER] Mythic re-sync result: %s", result)
 
 
 async def _resync_loop():
-    """Coroutine on mythic's event loop, checks for resync signals."""
     while True:
         await asyncio.sleep(2)
         if _pending_resync.is_set():
@@ -140,25 +101,19 @@ async def _resync_loop():
 
 
 def _config_watcher():
-    """Background thread: polls for config file changes and signals resync."""
     while True:
         time.sleep(_CONFIG_CHECK_INTERVAL)
         try:
             if config_loader._check_mtimes():
-                logger.critical("[DOLOS-WATCHER] Config files changed on disk, scheduling re-sync")
+                logger.critical("[DOLOS-WATCHER] Config files changed, scheduling re-sync")
                 _pending_resync.set()
         except Exception as e:
             logger.exception("[DOLOS-WATCHER] Error: %s", e)
 
 
-# Start the config watcher thread
 _watcher_thread = threading.Thread(target=_config_watcher, daemon=True, name="dolos-config-watcher")
 _watcher_thread.start()
 logger.critical("[DOLOS-WATCHER] Config watcher started (checking every %ds)", _CONFIG_CHECK_INTERVAL)
-
-# ── Patch mythic's event loop to include our resync coroutine ──
-# mythic's start_and_run_forever creates a new event loop and runs forever.
-# We replace it with our own version that also schedules _resync_loop on that loop.
 
 _original_start = mythic_container.mythic_service.start_and_run_forever
 
@@ -168,11 +123,9 @@ def _patched_start():
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(mythic_container.mythic_service.start_services())
-        # Schedule our resync loop on the same event loop as mythic
         loop.create_task(_resync_loop())
         logger.critical("[DOLOS-WATCHER] Resync loop scheduled on mythic event loop")
         loop.run_forever()
-        logger.error("start_and_run_forever finished")
     except KeyboardInterrupt:
         sys.exit(0)
     finally:

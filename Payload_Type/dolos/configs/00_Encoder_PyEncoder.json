@@ -1,0 +1,18 @@
+{
+    "version": 2,
+    "label": "PyEncoder",
+    "enabled": true,
+    "command": "py.exe C:\\tools\\dolos\\encoder.py {workdir}\\{input} {workdir}\\{output}",
+    "ssh_host": "127.0.0.2",
+    "ssh_port": 22,
+    "ssh_username": "mrgnc",
+    "ssh_password": "it800m3rz!windows",
+    "ssh_key_enabled": false,
+    "ssh_key_secret": "00_SSHKey_mrgnc_id_rsa",
+    "timeout": 300,
+    "success_string": "ENCODING_SUCCESS",
+    "fail_string": "ENCODING_FAILED",
+    "install_tools": true,
+    "bypass_refs": [],
+    "notes": "Windows-only encoder using py.exe. SSH password auth for dev. Switch to ssh_key_enabled=true and add key in User Settings → Secrets for production."
+}

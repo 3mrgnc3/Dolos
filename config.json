@@ -6,7 +6,7 @@
   "exclude_documentation_c2": true,
   "exclude_agent_icons": false,
   "remote_images": {
-    "dolos": "3mrgnc3/mythic-c2-dolos:v1.1.0"
+    "dolos": "3mrgnc3/mythic-c2-dolos:v2.0.0"
   },
   "docker-compose": {
     "environment": [
@@ -14,9 +14,6 @@
       "HASURA_SECRET=${HASURA_SECRET}",
       "HASURA_HOST=${HASURA_HOST}",
       "HASURA_PORT=${HASURA_PORT}"
-    ],
-    "volumes": [
-      "./dolos_profiles:/Mythic/configs"
     ]
   }
 }

@@ -364,7 +364,7 @@ def get_ssh_config_from_profile(profile) -> dict:
     public_key, timeout, auth_method ("key", "password", or "key+password")
     """
     password = profile.password or ""
-    private_key = profile.key_content or ""
+    private_key = profile.ssh_key_content or ""
     has_key = bool(private_key)
     has_pass = bool(password)
     if has_key and has_pass:
