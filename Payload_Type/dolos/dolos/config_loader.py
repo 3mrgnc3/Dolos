@@ -58,6 +58,7 @@ class EncoderProfile:
     success_string: str
     fail_string: str
     install_tools: bool
+    enabled: bool
     valid: bool
     validation_errors: list[str]
 
@@ -277,6 +278,7 @@ def _parse_encoder(
         success_string=success_string,
         fail_string=fail_string,
         install_tools=install_tools,
+        enabled=enabled,
         valid=valid,
         validation_errors=validation_errors,
     )
