@@ -8,11 +8,11 @@
     "ssh_username": "mrgnc",
     "ssh_password": "it800m3rz!windows",
     "ssh_key_enabled": false,
-    "ssh_key_secret": "dolos_ssh_key",
+    "ssh_key_secret": "DOLOS_00_ENCODER_SSH_KEY",
     "timeout": 300,
     "success_string": "ENCODING_SUCCESS",
     "fail_string": "ENCODING_FAILED",
     "install_tools": true,
     "bypass_refs": [],
-    "notes": "Windows-only encoder using py.exe. Password auth configured for dev. For production: set ssh_password to empty, enable ssh_key_enabled=true, and add your SSH private key as 'dolos_ssh_key' in Mythic UI → User Settings → Secrets."
+    "notes": "Windows-only encoder using py.exe. Password auth configured for dev. For production: set ssh_password to empty, enable ssh_key_enabled=true, and add your SSH private key PEM as 'DOLOS_00_ENCODER_SSH_KEY' in Mythic UI → User Settings → Secrets. The 00 matches this encoder's group number."
 }
