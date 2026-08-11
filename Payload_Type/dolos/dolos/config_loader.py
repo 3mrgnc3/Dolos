@@ -1,6 +1,6 @@
 """Dolos v2 Config Loader - flat-file naming convention.
 
-Loads encoder profiles from /Mythic/configs/ using the NN_Type_Detail.ext naming
+Loads encoder profiles from /Mythic/ using the NN_Type_Detail.ext naming
 convention. No directory traversal, no scaffolding, no SSH key files.
 
 File naming: {NN}_{Type}_{Detail}.{ext}
