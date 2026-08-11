@@ -1,9 +1,8 @@
 # Dolos v2 service container (Mythic wrapper payload type).
 # Pure-Python: mythic_python_base + paramiko (SSH/SFTP).
 #
-# v2: Flat-file config in /Mythic/configs/ (paperclip-editable).
-# No separate bind mount — configs are baked into the image and editable
-# via the Mythic paperclip UI. SSH keys resolved via Mythic User Secrets.
+# v2: Flat-file configs at /Mythic/ root — visible in paperclip UI.
+# No separate bind mount. SSH keys via Mythic User Secrets.
 
 FROM itsafeaturemythic/mythic_python_base:latest
 
@@ -14,8 +13,10 @@ RUN pip3 install paramiko
 COPY main.py /Mythic/main.py
 COPY dolos/ /Mythic/dolos/
 
-# Copy default v2 configs into /Mythic/configs/ — paperclip-editable
-COPY configs/ /Mythic/configs/
+# Copy v2 flat-file configs to /Mythic/ root — visible in paperclip UI
+COPY 00_Encoder_PyEncoder.json /Mythic/
+COPY 00_Tool_pyencoder_encode.py /Mythic/
+COPY 00_Tool_pyencoder_install.ps1 /Mythic/
 
 WORKDIR /Mythic/
 

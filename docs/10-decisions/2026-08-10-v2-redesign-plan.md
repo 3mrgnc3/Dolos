@@ -1,7 +1,7 @@
 # Dolos v2 — Full Redesign Plan (Updated)
 
-**Status**: Draft — awaiting approval before implementation  
-**Branch**: `feature/ui-managed-configs` (to be created from `master`)  
+**Status**: In progress — v2.0.0 running, configs at /Mythic/ root  
+**Branch**: `feature/ui-managed-configs`  
 **Version**: v2.0.0 (breaking change)
 
 ---

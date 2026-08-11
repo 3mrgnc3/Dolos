@@ -10,7 +10,6 @@
   },
   "docker-compose": {
     "environment": [
-      "DOLOS_CONFIG=/Mythic/configs",
       "HASURA_SECRET=${HASURA_SECRET}",
       "HASURA_HOST=${HASURA_HOST}",
       "HASURA_PORT=${HASURA_PORT}"
