@@ -25,7 +25,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-CONFIG_DIR = os.environ.get("DOLOS_CONFIG") or "/Mythic/configs"
+CONFIG_DIR = os.environ.get("DOLOS_CONFIG") or "/Mythic"
 
 _FILE_PATTERN = re.compile(r"^(\d{2})_(Encoder|Bypass|Tool)_(.+)\.(json|ps1|sh|py)$")
 
