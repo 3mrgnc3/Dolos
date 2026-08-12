@@ -1,8 +1,8 @@
 # <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Dolos - The Craftsman of Lies
 
-**Mythic wrapper payload type — encode shellcode on your own remote infrastructure with traditional scripting and tools.**
+**[Mythic](https://github.com/its-a-feature/Mythic) wrapper payload type — encode shellcode on your own remote/external infrastructure with traditional scripting and tools.**
 
-Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result.
+Dolos is **encoder-agnostic**: it supports all shellcode and processed payload types, relying on your own pre-configured remote SSH server with whatever tools you want installed. Connect to your own licensed copy of [Balliskit's ShellcodePack](https://balliskit.com/) and have all the processing and logs ingested automatically into Mythic's database. The included PyEncoder is a starting example to demonstrate the capabilities.
 
 ---
 
@@ -33,7 +33,7 @@ Dolos takes an existing built payload, transfers it to an external server over S
 sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
-This pulls the pre-built Docker image from Docker Hub (`3mrgnc3/mythic-c2-dolos:latest`). No local build required.
+This pulls the pre-built Docker image from Docker Hub. No local build required.
 
 To reinstall or update:
 
@@ -42,207 +42,123 @@ sudo ./mythic-cli uninstall dolos
 sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
-### 2. Configure Encoder Profiles
+### 2. Configure encoder profiles
 
-Edit the `00_*.json` files inside the Dolos container via the **Mythic paperclip UI**:
+Edit the `NN_*.json` files inside the Dolos container via the Mythic **paperclip UI**.
+Each profile specifies an SSH server, command template, and bypass references.
+The included PyEncoder profile is a working example — configure it for your server,
+or add profiles for [Balliskit ShellcodePack](https://balliskit.com/), donut, or your own tools.
 
-1. In Mythic UI, go to **Installed Services** → find Dolos → click the **paperclip icon**
-2. Edit `00_Encoder_PyEncoder.json` — set your SSH server details
-3. Changes take effect immediately (no container restart needed)
+### 3. Deploy your encoding tools on the remote server
 
-### 3. Add SSH Credentials
+Install whatever tools you need on your SSH server:
+- [Balliskit ShellcodePack](https://balliskit.com/) — commercial EDR evasion with bypass profiles
+- [Balliskit MacroPack](https://balliskit.com/) — Office macro generation
+- donut — open-source shellcode-to-EXE converter
+- Custom scripts — anything that takes input and produces output
 
-For key-based auth (recommended):
+If `install_tools: true` is set in the profile, Dolos will automatically run
+install scripts on the remote server before encoding.
 
-1. In Mythic UI → **User Settings** → **Secrets**
-2. Add your SSH private key PEM as `DOLOS_00_ENCODER_SSH_KEY`
-3. In the encoder profile, set `ssh_key_enabled: true` and `ssh_password: ""`
+### 4. Add SSH credentials
 
-For password auth (development only), set `ssh_password` directly in the profile.
+In Mythic UI → User Settings → Secrets, add your SSH private key as
+`DOLOS_NN_ENCODER_SSH_KEY`. The encoder profile's `ssh_key_secret` field references
+this secret name. Alternatively, set `ssh_password` directly in the profile for development.
 
-### 4. Build a Wrapper
+### 5. Create a payload
 
-1. **First**: Build a payload using another payload type (e.g., Apollo, Merlin)
-2. Then go to **Create Wrapper** in Mythic UI
-3. Select **Dolos** as the wrapper type
-4. Choose your encoder profile (e.g., PyEncoder)
-5. Select the payload you built in step 1
-6. Click **Build**
+Build any payload (e.g., Apollo, Merlin) with its C2 profile.
 
-Dolos will SSH to your encoder server, upload the payload, run the encoder command, and return the result.
+### 6. Create a wrapper
 
----
+Mythic UI → **Create Wrapper** → select Dolos → select the inner payload → choose encoder → Build.
 
-## User Guide
+### 7. Download the result
 
-### How Wrappers Work in Mythic
-
-Dolos is a **wrapper payload type** — it doesn't generate payloads from scratch. Instead, it takes an existing built payload and transforms it through an external encoder. This is why it appears under **Create Wrapper** (not Create Payload).
-
-The workflow is:
-
-1. Build a **base payload** using any payload type (e.g., Apollo for Windows, Poseidon for Linux)
-2. Go to **Create Wrapper** → select **Dolos**
-3. Choose an encoder profile and the base payload
-4. Dolos transfers the base payload to your remote server, runs the encoder, and returns the result
-
-The output format depends on the encoder. It could be an EXE, DLL, shellcode binary, or anything your encoder produces.
-
-### Selecting Different Payloads
-
-When creating a Dolos wrapper, you'll select an inner (base) payload. The **Os** dropdown shows which operating systems the inner payload supports. Since Dolos connects over SSH to a remote server, it lists `SSH Server + Any OS` — the encoder server handles the actual encoding.
-
-**Steps to create a wrapper**:
-
-1. **Create Wrapper** from the Mythic sidebar
-2. **Step 1**: Select operating system — `SSH Server + Any OS` is the only option (Dolos uses SSH to a remote server)
-3. **Step 2**: Configure build parameters:
-   - **Encoder** — Select which encoder profile to use (dropdown from `00_*.json` files)
-   - **Bypass Profile** — Select a bypass profile if the encoder has bypass refs (or "(None)")
-   - **Timeout** — How long to wait for the encoder command (default: 300 seconds)
-   - **Regenerate Shellcode** — If the inner payload already has a Dolos wrapper, rebuild with a new UUID
-4. **Step 3**: Select the inner payload to wrap
-5. Click **Submit** to build
-
-### Encoder Profiles
-
-Encoder profiles are flat JSON files in `/Mythic/` inside the Dolos container. Each file starts with `00_` (the group number):
-
-```json
-{
-    "version": 2,
-    "label": "PyEncoder",
-    "enabled": true,
-    "command": "py.exe C:\\tools\\dolos\\encoder.py {workdir}\\{input} {workdir}\\{output}",
-    "ssh_host": "192.168.1.100",
-    "ssh_port": 22,
-    "ssh_username": "operator",
-    "ssh_password": "",
-    "ssh_key_enabled": false,
-    "ssh_key_secret": "DOLOS_00_ENCODER_SSH_KEY",
-    "timeout": 300,
-    "success_string": "ENCODING_SUCCESS",
-    "fail_string": "ENCODING_FAILED",
-    "install_tools": true,
-    "bypass_refs": [],
-    "notes": "Windows-only encoder"
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `label` | Display name in Mythic UI dropdown |
-| `enabled` | Set `false` to hide from the dropdown |
-| `command` | Remote command with `{workdir}`, `{input}`, `{output}` placeholders |
-| `ssh_host` / `ssh_port` | Remote encoder server address |
-| `ssh_username` | SSH login username |
-| `ssh_password` | Password auth (empty string for key-only) |
-| `ssh_key_enabled` | Set `true` to use SSH key from Mythic User Secrets |
-| `ssh_key_secret` | Name of the Mythic User Secret containing the PEM private key |
-| `timeout` | Seconds to wait for the encoder command |
-| `success_string` | String in stdout confirming success |
-| `fail_string` | String in stdout/stderr indicating failure |
-| `install_tools` | Run install script before encoding |
-| `bypass_refs` | Names of bypass profile files |
-
-To add a second encoder, create `01_Encoder_OtherName.json` with group number `01`.
-
-### SSH Authentication
-
-| Method | Profile Config | Mythic UI |
-|--------|---------------|-----------|
-| **Password** | Set `ssh_password` in profile JSON | None needed |
-| **SSH Key** | `ssh_key_enabled: true`, `ssh_password: ""` | Add key PEM as User Secret with name matching `ssh_key_secret` |
-
-SSH keys are injected at build time via Mythic's secrets API — no key files stored on disk.
-
-### Bypass Profiles
-
-Bypass profiles are additional JSON files referenced by `bypass_refs` in the encoder profile. They let you define different encoding strategies (e.g., AMSI bypass, ETW patching) that appear as a dropdown in the Mythic UI.
-
-### Tool Installation
-
-If `install_tools: true`, Dolos will run the matching install script (`00_Tool_<encoder>_install.ps1` for Windows, `.sh` for Linux) on the remote server before encoding. This ensures the encoder executable is present. The install is idempotent — safe to run multiple times.
-
-### Session Logging
-
-Every build produces a `.session.json` artifact in Mythic. Download it from the build results — it contains a timestamped log of every SSH/SFTP operation, the encoder command, stdout/stderr, exit codes, and file magic detection.
-
-### Paperclip UI (Live Config Editing)
-
-All `00_*.json` files are visible and editable through the Mythic paperclip UI:
-
-1. **Installed Services** → find Dolos → click the 📎 icon
-2. Edit any profile file directly
-3. Changes are detected on the next build (5-second poll cycle)
+Get your wrapped output (EXE, DLL, shellcode bin, or whatever your encoder produces)
+with a full session log (.session.json) containing every SSH/SFTP event, stdout/stderr,
+exit codes, and timestamps.
 
 ---
 
-## Architecture
+## How It Works
 
-<details>
-<summary>How Dolos works (click to expand)</summary>
+Dolos is a **wrapper**, not a normal payload. It appears under **Create Wrapper** (not Create Payload)
+in Mythic's UI. The wrapped payload's C2 is already embedded — no C2 profile selection needed.
+
+### Build Pipeline
 
 ```
-  Mythic Server                    Dolos Container                Remote Server
-  ┌─────────┐                     ┌─────────────┐               ┌─────────────┐
-  │ Create   │ ──── payload ────▶ │ ① SSH auth  │               │             │
-  │ Wrapper  │                     │ ② SFTP upload│ ── payload ──▶│ encoder.py  │
-  │          │                     │ ③ Run install│ ── script ───▶│ C:\tools\   │
-  │          │                     │ ④ SSH exec   │ ── command ──▶│ .exe → .bin │
-  │          │                     │ ⑤ SFTP down  │ ◀─ result ────│ output.bin  │
-  │          │ ◀── result + log ── │ ⑥ Cleanup   │               │             │
-  └─────────┘                     └─────────────┘               └─────────────┘
+Operator → Mythic → Dolos container ──SSH──→ Remote server
+                                      ──SFTP──→ Upload payload
+                                      ──SSH────→ Run encoder command
+                                      ──SFTP──→ Download result
+                                      ──SFTP──→ Cleanup workdir
+                              ← Result (any format) + Session log (.session.json)
 ```
 
-</details>
+### What Gets Logged (Session Log)
+
+Every SSH connection event, SFTP operation (upload, download, mkdir, remove),
+the exact encoder command run, line-by-line stdout/stderr, exit codes, file magic
+detection, and cleanup — all with ISO 8601 timestamps and elapsed time.
 
 ---
 
-## Installation
+## v2 Architecture
 
-### Prerequisites
+Dolos v2 uses **flat-file configs** at `/Mythic/` root and **Mythic User Secrets** for SSH keys:
 
-- Mythic 3.x (tested on 3.3+)
-- A remote encoder server accessible over SSH
-- Your encoder tooling installed (or use `install_tools: true`)
+- **No `configs/` subdirectories** — every file is at `/Mythic/` root, visible in paperclip
+- **No SSH key files on disk** — private keys come from Mythic's User Secrets API
+- **No scaffolding** — the image ships with a sample encoder, operators edit via paperclip
+- **Encoder-agnostic** — supports all shellcode and processed payload types via any SSH-accessible tool
 
-### Install
+### Config Directory
 
-```bash
-sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
+```
+/Mythic/
+├── 00_PyEncoder.json              ← included example encoder profile (paperclip-editable)
+├── 00_Tool_pyencoder_encode.py    ← included example encoder script (paperclip-editable)
+├── 00_Tool_pyencoder_install.ps1 ← included example install script (paperclip-editable)
+├── 01_ShellcodePack.json          ← Balliskit encoder profile (add your own)
+├── 01_Tool_shellcodepack_install.ps1 ← Balliskit install script (add your own)
+├── 01_Bypass_AMSI.json            ← bypass profile (add your own)
+├── main.py
+└── dolos/
+    ├── __init__.py
+    ├── agent_functions/
+    │   └── builder.py
+    ├── config_loader.py
+    ├── ssh_client.py
+    └── hasura.py
 ```
 
-### Uninstall
-
-```bash
-sudo ./mythic-cli uninstall dolos
-```
-
----
-
-## Included Encoder
-
-Dolos ships with **PyEncoder** — a Python-based encoder that uses the Windows C# compiler (`csc.exe`) to create a .NET cradle that loads and executes shellcode.
-
-Files in `/Mythic/`:
-- `00_Encoder_PyEncoder.json` — encoder profile (paperclip-editable)
-- `00_Tool_pyencoder_encode.py` — encoder script (paperclip-editable)
-- `00_Tool_pyencoder_install.ps1` — install script (paperclip-editable)
-
-Deploy the encoder to your remote server:
-
-```powershell
-scp 00_Tool_pyencoder_encode.py operator@192.168.1.100:C:/tools/dolos/encoder.py
-```
+Private keys and passwords are **never stored on disk** — they come from Mythic's User
+Secrets API at build time. The included PyEncoder profile has placeholder credentials
+for development. Operators customize via paperclip.
 
 ---
 
 ## Changelog
 
-- **v2.1.0** — Clean public release. Removed dev docs, cleaned up gitignore, updated documentation for v2.
+- **v2.1.1** — Encoder-agnostic documentation rewrite: Balliskit ShellcodePack/MacroPack examples, restored detailed setup/encoder/troubleshooting docs, expanded payload_output to reflect all supported formats.
+- **v2.1.0** — Clean public release. Screenshots, user guide, E2E tests.
 - **v2.0.0** — Flat-file configs at `/Mythic/` root. Mythic User Secrets for SSH keys. Paperclip-editable. Fixed sync spam bug.
-- **v1.0.x** — Initial releases, MythicMeta compliance, Docker Hub publishing.
+- **v1.0.9** — Author sticker, `rabbitmq_config.json` with correct Docker service names.
+- **v1.0.8** — Rebuilt from clean source to verify all fixes.
+- **v1.0.7** — Fix syntax error in main.py.
+- **v1.0.6** — Remove custom env vars from config.json that caused Docker Compose warnings.
+- **v1.0.5** — Remove harmful `rabbitmq_config.json`, fix local dev fallback.
+- **v1.0.4** — Public release. Removed dev tools, config templates. Fresh Docker build.
+- **v1.0.3** — MythicMeta-compliant repo structure, pre-built Docker Hub image, Apache 2.0 license.
+- **v1.0.0** — Initial public release. Remote encoder via SSH/SFTP, session logging, config hot-reload.
+- **v0.13.0** — Auto-install tools on remote servers. Success/fail strings in profile JSON. ChooseOneCustom timeout.
+- **v0.11.0** — File-based multi-profile config. Per-profile SSH, bypass profiles, auto-scaffold.
+- **v0.10.0** — Shellcode deduplication via Hasura + MythicRPC. Auto-rebuild with fresh UUID.
+- **v0.9.0** — SSH key authentication. `Regenerate Shellcode` build param.
+- **v0.5.1** — `resp.payload` lowercase fix.
 
 ---
 

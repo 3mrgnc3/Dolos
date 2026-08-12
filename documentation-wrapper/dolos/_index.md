@@ -10,7 +10,14 @@ weight = 100
 
 Dolos is a **Mythic wrapper payload type** that transforms an existing built payload
 via an external SSH-connected server. You select a payload, choose an encoder profile,
-and Dolos transfers it to the remote server, runs the encoder, and returns the result.
+and Dolos transfers it to the remote server, runs the encoder, and brings the
+result back — all over SSH/SFTP.
+
+**Dolos is encoder-agnostic**: it supports all shellcode and processed payload types,
+relying on your own pre-configured remote SSH server with whatever tools you want installed.
+The included [PyEncoder](encoder-setup) is a starting example to demonstrate the capabilities.
+Connect to your own licensed copy of [Balliskit's ShellcodePack](https://balliskit.com/) and
+have all the processing and logs ingested automatically into Mythic's database.
 
 <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:800px;">
   <defs>
@@ -50,11 +57,11 @@ and Dolos transfers it to the remote server, runs the encoder, and returns the r
   <rect x="550" y="40" width="220" height="140" class="box" fill="#1e3a2a" stroke="#22c55e"/>
   <text x="660" y="65" class="label" font-weight="bold" fill="#22c55e">Remote Server</text>
   <rect x="570" y="80" width="180" height="28" rx="4" fill="#253d2d" stroke="#22c55e" stroke-width="1"/>
-  <text x="660" y="99" class="label" font-size="10">C:\tools\encoder.py</text>
+  <text x="660" y="99" class="label" font-size="10">ShellcodePack / donut / etc.</text>
   <rect x="570" y="115" width="180" height="28" rx="4" fill="#253d2d" stroke="#22c55e" stroke-width="1"/>
   <text x="660" y="134" class="label" font-size="10">C:\Windows\Temp\wd_XXXXX\</text>
   <rect x="570" y="150" width="180" height="22" rx="4" fill="#253d2d" stroke="#22c55e" stroke-width="1"/>
-  <text x="660" y="165" class="label" font-size="10">csc.exe / donut.exe / etc.</text>
+  <text x="660" y="165" class="label" font-size="10">YOUR tools — YOUR server</text>
 
   <!-- Arrows -->
   <line x1="230" y1="110" x2="275" y2="110" stroke="#4a9eff" stroke-width="2" marker-end="url(#arrowhead)"/>
@@ -72,7 +79,7 @@ and Dolos transfers it to the remote server, runs the encoder, and returns the r
   <!-- Session Log Box -->
   <rect x="30" y="220" width="740" height="55" rx="8" fill="#1a2332" stroke="#f59e0b" stroke-width="1"/>
   <text x="400" y="242" class="label" fill="#f59e0b" font-weight="bold">📄 Session Log Artifact</text>
-  <text x="400" y="260" class="label" font-size="11" fill="#888">payload_name.session.json — full timestamped log of every SSH/SFTP event</text>
+  <text x="400" y="260" class="label" font-size="11" fill="#888">payload_name.session.json — full timestamped log of every SSH/SFTP event, stdout/stderr, exit codes</text>
 
   <!-- Key Features -->
   <rect x="30" y="295" width="740" height="70" rx="8" fill="#1a2332" stroke="#444" stroke-width="1"/>
@@ -80,14 +87,14 @@ and Dolos transfers it to the remote server, runs the encoder, and returns the r
   <text x="130" y="340" class="title" font-size="10">No C2 selection</text>
   <text x="130" y="355" class="title" font-size="10">Native payload picker</text>
   <text x="340" y="322" class="label" fill="#a855f7" font-weight="bold">Encoders</text>
-  <text x="340" y="340" class="title" font-size="10">Per-profile SSH config</text>
-  <text x="340" y="355" class="title" font-size="10">Paperclip-editable config</text>
-  <text x="560" y="322" class="label" fill="#22c55e" font-weight="bold">User Secrets</text>
-  <text x="560" y="340" class="title" font-size="10">SSH keys via Mythic UI</text>
-  <text x="560" y="355" class="title" font-size="10">No key files on disk</text>
+  <text x="340" y="340" class="title" font-size="10">Encoder-agnostic</text>
+  <text x="340" y="355" class="title" font-size="10">Bypass profiles support</text>
+  <text x="560" y="322" class="label" fill="#22c55e" font-weight="bold">Session Log</text>
+  <text x="560" y="340" class="title" font-size="10">JSON artifact per build</text>
+  <text x="560" y="355" class="title" font-size="10">Forensic timestamps</text>
 </svg>
 
-**Current version: v2.1.0**
+**Current version: v2.1.1**
 
 ### Quick Start
 
@@ -99,41 +106,57 @@ sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 
 This pulls the pre-built Docker image from Docker Hub. No local build required.
 
-2. **Configure encoder profiles**
-
-Edit the encoder profile files in `/Mythic/00_*.json` inside the Dolos container
-(via the Mythic paperclip UI), or mount a `dolos_profiles/` directory.
-
-3. **Add SSH credentials**
-
-In Mythic UI → User Settings → Secrets, add your SSH private key as
-`DOLOS_00_ENCODER_SSH_KEY` (or whichever secret name your profile references).
-
-4. **Build**
-
-Mythic UI → **Create Wrapper** → select a payload → select Dolos → pick encoder → Build.
+2. **Configure encoder profiles** — Edit the encoder profile files in `/Mythic/00_*.json`
+   inside the Dolos container via the Mythic paperclip UI. Each profile specifies SSH server
+   details, command template, and bypass references. See [Setup](setup) for full configuration.
+3. **Set up your remote server** — Install your encoding tools on the remote SSH server
+   (e.g., [Balliskit ShellcodePack](https://balliskit.com/), donut, custom scripts).
+   Dolos connects over SSH and runs whatever you configure.
+4. **Add SSH credentials** — In Mythic UI → User Settings → Secrets, add your SSH
+   private key as `DOLOS_00_ENCODER_SSH_KEY` (or whichever secret name your profile references).
+5. **Create a payload** — Build any payload (e.g., Apollo, Merlin) with its C2 profile.
+6. **Create a wrapper** — Go to Create Wrapper → Dolos → select the payload → choose encoder → Build.
+7. **Download the result** — Get your wrapped output with full session log.
 
 ### How It Works
 
 Dolos is a **wrapper**, not a normal payload. It appears under **Create Wrapper** (not Create Payload)
 in Mythic's UI. The wrapped payload's C2 is already embedded — no C2 profile selection needed.
 
+**Build pipeline:**
+
+```
+Operator → Mythic → Dolos container ──SSH──→ Remote server
+                                      ──SFTP──→ Upload payload
+                                      ──SSH────→ Run encoder command
+                                      ──SFTP──→ Download result
+                                      ──SFTP──→ Cleanup workdir
+                              ← Result (EXE/DLL/bin) + Session log (.session.json)
+```
+
 **Config files are flat JSON at `/Mythic/` root** — visible and editable via the Mythic
 paperclip UI. No directory traversal, no hidden subdirectories. SSH keys are stored as
 Mythic User Secrets, never as files on disk.
 
+**What gets logged (session log):**
+Every SSH connection event, SFTP operation (upload, download, mkdir, remove),
+the exact encoder command run, line-by-line stdout/stderr, exit codes, file magic
+detection, and cleanup — all with ISO 8601 timestamps and elapsed time.
+
 ### Key Features
 
-- **Flat-file configs** — `00_Encoder_*.json` at `/Mythic/` root, paperclip-editable
-- **User Secrets for SSH** — Private keys stored in Mythic UI, never on disk
-- **Per-profile SSH config** — Each encoder has its own SSH server and auth method
-- **Bypass profiles** — Encoders can use bypass profiles that appear as a dropdown
+- **Encoder-agnostic** — Supports all shellcode and processed payload types. Use any tool on your remote server: Balliskit ShellcodePack, donut, custom scripts, or the included PyEncoder example
+- **Per-profile SSH config** — Each encoder profile has its own SSH server, credentials, and command
+- **Bypass profiles** — Encoders like ShellcodePack can use bypass profiles that appear as a dropdown
 - **Auto-install tools** — Idempotent install scripts run on the remote server before encoding
 - **Native wrapper flow** — Select payload via Mythic's built-in selector
+- **No C2 profile selection** — The wrapped payload already has its C2; Dolos just transforms it
 - **Full session logging** — Every SSH/SFTP event captured as a JSON artifact with timestamps
 - **Success/failure detection** — Per-encoder, configurable success/fail strings in profile JSON
 - **Automatic workdir cleanup** — Random temp directory per build, deleted after completion
 - **Build progress steps** — 9 steps reported in the UI with ✅/❌ status indicators
+- **User Secrets for SSH** — Private keys stored in Mythic UI, never on disk
+- **Paperclip-editable configs** — Flat JSON files at `/Mythic/` root, no restart needed
 
 ## Authors
 

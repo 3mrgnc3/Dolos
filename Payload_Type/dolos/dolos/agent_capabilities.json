@@ -20,7 +20,12 @@
     "exe",
     "dll",
     "bin",
-    "elf"
+    "elf",
+    "ps1",
+    "hta",
+    "sct",
+    "lnk",
+    "servicedefinition"
   ],
   "architectures": [
     "x86_64",
@@ -28,6 +33,6 @@
   ],
   "c2": [],
   "mythic_version": "3.3",
-  "agent_version": "2.1.0",
+  "agent_version": "2.1.1",
   "supported_wrappers": []
 }
