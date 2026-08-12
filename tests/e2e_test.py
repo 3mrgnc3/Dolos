@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dolos v2.1.0 E2E Test Suite
+"""Dolos v2.1.1 E2E Test Suite
 
 Tests Dolos container:
 1. Container is running
@@ -37,9 +37,9 @@ def test_container_running():
 
 
 def test_correct_image():
-    """Container uses the v2.1.0 image."""
+    """Container uses the v2.1.1 image."""
     out, _, rc = run("sudo docker ps --filter name=dolos --format '{{.Image}}'")
-    assert "v2.1.0" in out, f"Wrong image: {out}"
+    assert "v2.1.1" in out, f"Wrong image: {out}"
     print(f"  ✅ Image: {out}")
 
 
@@ -202,7 +202,7 @@ def test_agent_capabilities():
     """agent_capabilities.json has correct version and wrapper feature."""
     out, _, rc = run("sudo docker exec dolos cat /Mythic/dolos/agent_capabilities.json")
     data = json.loads(out)
-    assert data["agent_version"] == "2.1.0", f"Wrong agent version: {data['agent_version']}"
+    assert data["agent_version"] == "2.1.1", f"Wrong agent version: {data['agent_version']}"
     assert "wrapper" in data["features"]["mythic"], "Missing wrapper feature"
     assert data["os"] == ["SSH Server + Any OS"], f"Wrong OS: {data['os']}"
     print(f"  ✅ agent_capabilities: v{data['agent_version']}, wrapper=True")
@@ -226,7 +226,7 @@ def test_docker_compose_dolos_section():
     assert "DOLOS_CONFIG" not in out, "Found DOLOS_CONFIG env var (should not be present)"
     assert "DOLOS_LOG" not in out, "Found DOLOS_LOG env var (should not be present)"
     assert "HASURA_SECRET" in out, "Missing HASURA_SECRET env var"
-    assert "v2.1.0" in out, "Docker Compose doesn't reference v2.1.0 image"
+    assert "v2.1.1" in out, "Docker Compose doesn't reference v2.1.1 image"
     print("  ✅ docker-compose.yml Dolos section is correct")
 
 
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     failed = 0
     errors = []
     
-    print(f"\n🧪 Dolos v2.1.0 E2E Test Suite ({len(tests)} tests)\n")
+    print(f"\n🧪 Dolos v2.1.1 E2E Test Suite ({len(tests)} tests)\n")
     
     for test in tests:
         name = test.__name__
