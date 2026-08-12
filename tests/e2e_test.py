@@ -10,18 +10,23 @@ Tests Dolos container:
 6. Docker image is the correct version
 7. No custom env vars causing warnings
 8. Flat-file config format (v2 schema)
+9. Build parameters registered in Mythic database
+10. Documentation installed in Mythic
 """
 
 import json
+import os
 import subprocess
 import sys
-import time
 
 
 def run(cmd):
     """Run a shell command and return stdout."""
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
     return r.stdout.strip(), r.stderr.strip(), r.returncode
+
+
+MYTHIC_DIR = os.path.expanduser("~/MythicC2/Mythic")
 
 
 def test_container_running():
@@ -100,7 +105,7 @@ def test_no_configs_directory():
 
 def test_no_custom_env_vars():
     """No custom DOLOS_* env vars in docker-compose that could cause warnings."""
-    out, _, _ = run("cd ~/MythicC2/Mythic && grep -A5 'environment:' docker-compose.yml | head -30")
+    out, _, _ = run(f"cd {MYTHIC_DIR} && grep -A5 'environment:' docker-compose.yml | head -30")
     dolos_env = [l.strip() for l in out.split('\n') if 'DOLOS_' in l]
     assert len(dolos_env) == 0, f"Custom DOLOS_* env vars found: {dolos_env}"
     print("  ✅ No custom DOLOS_* env vars in docker-compose")
@@ -108,8 +113,7 @@ def test_no_custom_env_vars():
 
 def test_docker_compose_no_warnings():
     """Docker Compose config validates without warnings."""
-    out, err, rc = run("cd ~/MythicC2/Mythic && sudo docker compose config --quiet 2>&1")
-    # docker compose config --quiet exits 0 if valid
+    out, err, rc = run(f"cd {MYTHIC_DIR} && sudo docker compose config --quiet 2>&1")
     assert rc == 0 or "warning" not in err.lower(), f"Docker Compose warnings: {err}"
     print("  ✅ Docker Compose config valid")
 
@@ -125,10 +129,48 @@ def test_config_dir_default():
 
 def test_mythic_registration():
     """Dolos is registered as a wrapper payload type in Mythic."""
-    out, _, rc = run("cd ~/MythicC2/Mythic && sudo ./mythic-cli services 2>&1")
+    out, _, rc = run(f"cd {MYTHIC_DIR} && sudo ./mythic-cli services 2>&1")
     assert "dolos" in out, f"Dolos not in services list"
     assert "Up" in out.split("dolos")[1].split("\n")[0], f"Dolos not Up"
     print("  ✅ Dolos registered and running in Mythic")
+
+
+def test_mythic_wrapper_type():
+    """Dolos is marked as a wrapper in Mythic database."""
+    hasura_secret = run(f"grep HASURA_SECRET {MYTHIC_DIR}/.env")[0].split('"')[1]
+    result = subprocess.run([
+        "curl", "-sk", "-X", "POST", "http://127.0.0.1:8080/v1/graphql",
+        "-H", f"x-hasura-admin-secret: {hasura_secret}",
+        "-H", "Content-Type: application/json",
+        "-d", '{"query": "{ payloadtype(where: {name: {_eq: \\"dolos\\"}}) { id name wrapper deleted } }"}'
+    ], capture_output=True, text=True, timeout=10)
+    data = json.loads(result.stdout)
+    pt = data["data"]["payloadtype"][0]
+    assert pt["wrapper"] is True, f"Dolos not marked as wrapper: {pt}"
+    assert pt["deleted"] is False, f"Dolos marked as deleted: {pt}"
+    print(f"  ✅ Dolos registered as wrapper (id={pt['id']})")
+
+
+def test_mythic_build_parameters():
+    """Build parameters are registered in Mythic."""
+    hasura_secret = run(f"grep HASURA_SECRET {MYTHIC_DIR}/.env")[0].split('"')[1]
+    result = subprocess.run([
+        "curl", "-sk", "-X", "POST", "http://127.0.0.1:8080/v1/graphql",
+        "-H", f"x-hasura-admin-secret: {hasura_secret}",
+        "-H", "Content-Type: application/json",
+        "-d", '{"query": "{ payloadtype(where: {name: {_eq: \\"dolos\\"}}) { buildparameters { name parameter_type choices } } }"}'
+    ], capture_output=True, text=True, timeout=10)
+    data = json.loads(result.stdout)
+    params = data["data"]["payloadtype"][0]["buildparameters"]
+    param_names = [p["name"] for p in params]
+    assert "Encoder" in param_names, f"Encoder build param missing: {param_names}"
+    assert "Bypass Profile" in param_names, f"Bypass Profile build param missing: {param_names}"
+    assert "Regenerate Shellcode" in param_names, f"Regenerate Shellcode build param missing: {param_names}"
+    
+    # Check that PyEncoder is available as a choice
+    encoder_param = next(p for p in params if p["name"] == "Encoder")
+    assert "PyEncoder" in encoder_param["choices"], f"PyEncoder not in choices: {encoder_param['choices']}"
+    print(f"  ✅ Build parameters: {', '.join(param_names)} (Encoder choices: {encoder_param['choices']})")
 
 
 def test_tool_files_present():
@@ -179,17 +221,33 @@ def test_no_old_v1_code():
 
 def test_docker_compose_dolos_section():
     """docker-compose has correct Dolos service config."""
-    out, _, _ = run("cd ~/MythicC2/Mythic && cat docker-compose.yml")
+    out, _, _ = run(f"cd {MYTHIC_DIR} && cat docker-compose.yml")
     
-    # Check no DOLOS_CONFIG env var
     assert "DOLOS_CONFIG" not in out, "Found DOLOS_CONFIG env var (should not be present)"
-    # Check no DOLOS_LOG env vars  
     assert "DOLOS_LOG" not in out, "Found DOLOS_LOG env var (should not be present)"
-    # Check HASURA_SECRET is present
     assert "HASURA_SECRET" in out, "Missing HASURA_SECRET env var"
-    # Check image is v2.1.0
     assert "v2.1.0" in out, "Docker Compose doesn't reference v2.1.0 image"
     print("  ✅ docker-compose.yml Dolos section is correct")
+
+
+def test_documentation_installed():
+    """Dolos wrapper documentation installed in Mythic."""
+    doc_dir = os.path.expanduser("~/MythicC2/Mythic/documentation-docker/content/Wrappers/dolos")
+    assert os.path.isdir(doc_dir), f"Documentation directory not found: {doc_dir}"
+    assert os.path.exists(os.path.join(doc_dir, "_index.md")), "Missing _index.md"
+    assert os.path.exists(os.path.join(doc_dir, "setup.md")), "Missing setup.md"
+    assert os.path.exists(os.path.join(doc_dir, "troubleshooting.md")), "Missing troubleshooting.md"
+    print("  ✅ Documentation installed in Mythic")
+
+
+def test_installed_service_files():
+    """InstalledService directory has correct files."""
+    svc_dir = os.path.expanduser("~/MythicC2/Mythic/InstalledServices/dolos")
+    assert os.path.isdir(svc_dir), f"InstalledServices dir not found: {svc_dir}"
+    assert os.path.exists(os.path.join(svc_dir, "00_Encoder_PyEncoder.json")), "Missing encoder config"
+    assert os.path.exists(os.path.join(svc_dir, "main.py")), "Missing main.py"
+    assert os.path.exists(os.path.join(svc_dir, "dolos")), "Missing dolos/ dir"
+    print("  ✅ InstalledService files present")
 
 
 # Run all tests
