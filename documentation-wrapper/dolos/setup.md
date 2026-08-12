@@ -3,205 +3,86 @@ title = "Setup"
 weight = 10
 +++
 
-## How Configuration Works
+## Installing Dolos
 
-Dolos uses **file-based configuration** instead of environment variables. All SSH credentials,
-encoder commands, and bypass profiles are stored in the `configs/` directory, which is
-bind-mounted into the Dolos container at `/Mythic/configs/`.
+From your Mythic directory:
 
-### Directory Structure
-
-```
-configs/
-├── encoders/
-│   ├── pyencoder/
-│   │   └── encoder_profile.json     ← basic encoder, auto-scaffolded on first run
-│   ├── balliskit/
-│   │   ├── macropack/
-│   │   │   └── encoder_profile.json  ← MacroPack encoder profile
-│   │   ├── shellcodepack/
-│   │   │   └── encoder_profile.json ← ShellcodePack encoder profile
-│   │   ├── bypass_profiles/
-│   │   │   ├── cortex_bypass_profile.json
-│   │   │   └── s1_bypass_profile.json
-│   │   └── id_ed25519              ← SSH key for this server
-│   └── donut_x64/
-│       └── encoder_profile.json     ← Donut encoder profile
-└── ssh_keys/
-    ├── tiny11/
-    │   ├── id_ed25519              ← SSH private key
-    │   └── id_ed25519.pub          ← SSH public key (not used for auth)
-    └── ubuntuSVR01/
-        ├── ssh_key                 ← SSH private key
-        └── ssh_key.pub             ← SSH public key
+```bash
+sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
-Inside Docker: `/Mythic/configs/` (via the existing bind mount).
-Local debug: `DOLOS_CONFIG` points to the repo's `Payload_Type/dolos/configs/`.
+To reinstall or update:
 
-### encoder_profile.json Schema
+```bash
+sudo ./mythic-cli uninstall dolos
+sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
+```
 
-Each encoder has its own directory under `configs/encoders/` containing an
-`encoder_profile.json` file. This defines the SSH connection, command template,
-and optional bypass profiles.
+## Configuring Encoder Profiles
+
+Dolos v2 uses **flat-file configs** at the `/Mythic/` root directory. This makes
+them visible and editable via the Mythic paperclip UI.
+
+Each encoder is a single JSON file named `00_<EncoderName>.json`. The `00_` prefix
+groups it as encoder config (future: `01_` for second encoder, etc).
+
+### Encoder Profile Location
+
+Inside the Docker container, configs live at `/Mythic/` root:
+
+```
+/Mythic/
+├── 00_PyEncoder.json          ← encoder profile (paperclip-editable)
+├── 00_Tool_pyencoder_encode.py ← encoder script (paperclip-editable)
+├── 00_Tool_pyencoder_install.ps1 ← install script (paperclip-editable)
+├── main.py
+└── dolos/
+    └── ...
+```
+
+### Encoder Profile Format (v2)
 
 ```json
 {
-    "index": 0,
-    "label": "PyEncoder_v1",
+    "version": 2,
+    "label": "PyEncoder",
     "enabled": true,
-    "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
-    "ssh_server": {
-        "host": "192.168.1.100",
-        "port": 22,
-        "username": "operator",
-        "password": "",
-        "keys": {
-            "enabled": true,
-            "path": "../../ssh_keys/tiny11/id_ed25519"
-        }
-    },
+    "command": "py.exe C:\\tools\\dolos\\encoder.py {workdir}\\{input} {workdir}\\{output}",
+    "ssh_host": "192.168.1.100",
+    "ssh_port": 22,
+    "ssh_username": "operator",
+    "ssh_password": "",
+    "ssh_key_enabled": false,
+    "ssh_key_secret": "DOLOS_00_ENCODER_SSH_KEY",
     "timeout": 300,
     "success_string": "ENCODING_SUCCESS",
     "fail_string": "ENCODING_FAILED",
     "install_tools": true,
-    "toolset": "pyencoderv1",
-    "bypass_profiles": ""
+    "bypass_refs": [],
+    "notes": "Windows encoder using py.exe"
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `index` | int | No | Display order (lower = first). Default 0. |
-| `label` | string | Yes | Name shown in the Mythic Encoder dropdown. |
-| `enabled` | bool | No | Whether this profile appears in the dropdown. Default true. |
-| `command` | string | Yes | Command template with placeholders. Must contain `{input}` and `{output}`. |
-| `ssh_server.host` | string | Yes | Hostname or IP of the remote SSH server. |
-| `ssh_server.port` | int | No | SSH port. Default 22. |
-| `ssh_server.username` | string | Yes | SSH username. |
-| `ssh_server.password` | string | No | SSH password. Can be empty if using key auth. |
-| `ssh_server.keys.enabled` | bool | No | Whether to use SSH key auth. Default false. |
-| `ssh_server.keys.path` | string | No | Relative path from the profile JSON to the private key file. |
-| `timeout` | int | No | Command timeout in seconds. Default 300. |
-| `success_string` | string | No | String in stdout confirming success. Default `ENCODING_SUCCESS`. |
-| `fail_string` | string | No | String in stdout/stderr indicating failure. Default `ENCODING_FAILED`. |
-| `install_tools` | bool | No | Whether to auto-install tools before encoding. Default false. |
-| `toolset` | string | No | Subdirectory name under `configs/tools/` for install scripts. |
-| `bypass_profiles` | string | No | Relative path from the profile JSON to a directory of bypass profile JSON files. |
+### SSH Authentication
 
-**Note:** The field name `"lable"` (a common typo) is also accepted and normalized to `label`.
+**Password auth**: Set `ssh_password` in the profile JSON.
 
-### Key Authentication
+**Key auth (recommended)**: 
+1. Set `ssh_key_enabled: true` and `ssh_password: ""`
+2. Set `ssh_key_secret` to the Mythic User Secret name (e.g., `DOLOS_00_ENCODER_SSH_KEY`)
+3. Add your SSH private key PEM in Mythic UI → Settings → Secrets
 
-SSH key files are stored in `configs/ssh_keys/` (or alongside the encoder profile).
-The `keys.path` field is resolved **relative to the encoder_profile.json file**.
-
-Examples:
-- `"path": "../../ssh_keys/tiny11/id_ed25519"` - two directories up, into shared SSH keys
-- `"path": "../id_ed25519"` - key file in the same parent directory as the encoder profile
-- `"path": ""` - no key file (use password auth only)
-
-At least one auth method must be configured: password, key, or both.
+The private key is passed directly via Mythic's secrets API — no key files on disk.
 
 ### Bypass Profiles
 
-Some encoders (like ShellcodePack) support bypass profiles for EDR evasion. These are
-JSON files stored in a `bypass_profiles/` directory. When an encoder has bypass profiles,
-the **Bypass Profile** dropdown appears in the build dialog.
+Bypass profiles are referenced by name in `bypass_refs`. Each bypass profile is a
+JSON file in `/Mythic/` named `00_<EncoderName>_<BypassProfileName>.json`.
 
-The `bypass_profiles` field in the profile JSON points to the directory containing
-profile files. The `{bypass_profile}` placeholder in the command template resolves to
-the selected profile's stem name (filename without `.json`).
+## Deploying the Encoder
 
-Example encoder with bypass profiles:
-```json
-{
-    "index": 3,
-    "label": "ShellcodePack_v2.6",
-    "command": "C:\\tools\\shellcodepack.exe -i {workdir}\\{input} -o {workdir}\\{output} --profile C:\\tools\\profiles\\{bypass_profile}.json",
-    "ssh_server": {
-        "host": "192.168.1.100",
-        "port": 22,
-        "username": "operator",
-        "password": "",
-        "keys": {"enabled": true, "path": "../id_ed25519"}
-    },
-    "timeout": 600,
-    "bypass_profiles": "../bypass_profiles"
-}
-```
+Copy `00_Tool_pyencoder_encode.py` to `C:\tools\dolos\encoder.py` on your remote
+server. Requires Python (`py.exe`) and `csc.exe` (built into Windows).
 
-The bypass profiles dropdown shows entries like **"ProjectName / ProfileName Bypass"**.
-
-### Auto-Scaffolding
-
-If the `configs/` directory is missing or contains no encoder profiles, Dolos
-auto-creates a sample `PyEncoder_v1` profile with placeholder SSH credentials.
-This gives operators a starting template to customize immediately after install.
-
-## Setting Up Password Authentication
-
-1. Edit the encoder profile's `ssh_server` section:
-   ```json
-   {
-       "ssh_server": {
-           "host": "192.168.1.100",
-           "port": 22,
-           "username": "operator",
-           "password": "your_password_here",
-           "keys": {"enabled": false, "path": ""}
-       }
-   }
-   ```
-2. Reinstall: `mythic-cli uninstall dolos && mythic-cli install folder ../Dolos`
-
-## Setting Up Key Authentication
-
-1. Generate or copy an SSH key pair into `configs/ssh_keys/`:
-   ```
-   configs/ssh_keys/tiny11/id_ed25519       ← private key
-   configs/ssh_keys/tiny11/id_ed25519.pub   ← public key (reference only)
-   ```
-2. Reference the key from the encoder profile using a relative path:
-   ```json
-   {
-       "ssh_server": {
-           "keys": {"enabled": true, "path": "../../ssh_keys/tiny11/id_ed25519"}
-       }
-   }
-   ```
-3. Reinstall the container.
-
-## Verifying Connectivity
-
-When you create a wrapper, Dolos automatically tests the SSH connection.
-The build progress shows:
-- ✅ SSH connectivity
-- ✅ Key/password authentication
-- ✅ SFTP write test (upload + delete a small test file)
-
-If any step fails, you'll see ❌ with an error message and instructions.
-
-## Adding a New Encoder Profile
-
-1. Create a new directory under `configs/encoders/`:
-   ```
-   configs/encoders/my_encoder/encoder_profile.json
-   ```
-2. Fill in the profile JSON with your SSH server and command template
-3. Reinstall the container: `mythic-cli uninstall dolos && mythic-cli install folder ../Dolos`
-4. The new encoder appears in the **Encoder** dropdown
-
-## Environment Variables
-
-Only infrastructure-level env vars remain (all SSH and encoder config is in files):
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DOLOS_CONFIG` | No | `/Mythic/configs` | Path to configs directory |
-| `DOLOS_LOG_DIR` | No | `/tmp/dolos` | Log file directory |
-| `DOLOS_LOG_MAX_MB` | No | `50` | Max log file size in MB |
-| `DOLOS_LOG_MAX_BACKUPS` | No | `3` | Number of rotated log files |
-| `HASURA_SECRET` | Yes | - | Hasura admin secret |
-| `HASURA_HOST` | No | `mythic_graphql` | Hasura hostname |
-| `HASURA_PORT` | No | `8080` | Hasura port |
+If `install_tools` is `true`, Dolos will attempt to install Python automatically
+using the matching install script.

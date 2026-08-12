@@ -1,59 +1,22 @@
-# <img src="Payload_Type/dolos/dolos/dolos.svg" width="56" height="56" alt="Dolos logo"> Dolos - The Craftsman of Lies
+# <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Dolos - The Craftsman of Lies
 
-**[Mythic](https://github.com/its-a-feature/Mythic) wrapper payload type - encode shellcode on your own remote/external infrastructure with traditional scripting and tools.**
+**Mythic wrapper payload type — encode shellcode on your own remote infrastructure with traditional scripting and tools.**
 
-Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself - the remote encoder does all the work.
+Dolos takes an existing built payload, transfers it to an external server over SSH, runs your encoder, and returns the result. It does no encoding itself — the remote encoder does all the work.
 
 e.g connect to your own licenced copy of [Balliskit's ShellcodePack](https://balliskit.com/) tools and have all the processing and logs ingested automatically into Mythic's database.
 
 ---
+
 ## <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Quick Start
 
-### 1. Configure encoder profiles
-
-Edit `Payload_Type/dolos/configs/encoders/` - each subdirectory has an `encoder_profile.json`:
-
-```json
-{
-    "index": 0,
-    "label": "PyEncoder_v1",
-    "enabled": true,
-    "command": "py.exe C:\\tools\\encoder.py {workdir}\\{input} {workdir}\\{output}",
-    "ssh_server": {
-        "host": "192.168.1.100",
-        "port": 22,
-        "username": "operator",
-        "password": "",
-        "keys": { "enabled": true, "path": "../../ssh_keys/tiny11/id_ed25519" }
-    },
-    "timeout": 300,
-    "success_string": "ENCODING_SUCCESS",
-    "fail_string": "ENCODING_FAILED",
-    "install_tools": true,
-    "toolset": "pyencoderv1",
-    "bypass_profiles": ""
-}
-```
-
-### 2. Deploy the encoder on the remote server
-
-Copy `test_encoders/encoder.py` to `C:\tools\encoder.py`. Requires Python (`py.exe`) and `csc.exe` (built into Windows). If `install_tools` is `true`, Dolos will attempt to install Python automatically.
-
-### 3. Install into Mythic
-
-From your Mythic directory:
+### 1. Install into Mythic
 
 ```bash
 sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
 This pulls the pre-built Docker image from Docker Hub. No local build required.
-
-To install from a local clone instead:
-
-```bash
-sudo ./mythic-cli install folder /path/to/Dolos
-```
 
 To reinstall or update:
 
@@ -62,49 +25,58 @@ sudo ./mythic-cli uninstall dolos
 sudo ./mythic-cli install github https://github.com/3mrgnc3/Dolos
 ```
 
+### 2. Configure encoder profiles
+
+Edit the `00_*.json` files inside the Dolos container via the Mythic paperclip UI.
+Each file is a single encoder profile at `/Mythic/` root — flat-file, no subdirectories.
+
+### 3. Add SSH credentials
+
+In Mythic UI → Settings → Secrets, add your SSH private key as
+`DOLOS_00_ENCODER_SSH_KEY`. The encoder profile references this secret by name.
+
 ### 4. Build
 
 Mythic UI → **Create Wrapper** → select a payload → select Dolos → pick encoder → Build.
 
-Once installed, full documentation is available in the Mythic UI under the Dolos agent docs, including build parameter details, encoder setup guides, and troubleshooting.
-
 ---
 
-## Config Directory
+## v2 Architecture
+
+Dolos v2 uses **flat-file configs** at `/Mythic/` root and **Mythic User Secrets** for SSH keys:
+
+- **No `configs/` subdirectories** — every file is at `/Mythic/` root, visible in paperclip
+- **No SSH key files on disk** — private keys come from Mythic's User Secrets API
+- **No scaffolding** — the image ships with a sample encoder, operators edit via paperclip
+
+### Config Directory
 
 ```
-Payload_Type/dolos/configs/
-├── encoders/
-│   └── pyencoder/
-│       └── encoder_profile.json      ← sample (placeholder credentials)
-├── ssh_keys/
-│   └── (add your key directories)
-└── tools/
-    ├── pyencoderv1/                  ← installs Python on remote servers
-    │   ├── install_windows.ps1
-    │   └── install_linux.sh
-    ├── donut_x64/SETUP.md           ← donut.exe is standalone
-    ├── balliskit/SETUP.md           ← commercial tools from balliskit.com
-    └── passthrough/SETUP.md          ← needs Python
+/Mythic/
+├── 00_PyEncoder.json              ← encoder profile (paperclip-editable)
+├── 00_Tool_pyencoder_encode.py    ← encoder script (paperclip-editable)
+├── 00_Tool_pyencoder_install.ps1 ← install script (paperclip-editable)
+├── main.py
+└── dolos/
+    ├── __init__.py
+    ├── agent_functions/
+    │   └── builder.py
+    ├── config_loader.py
+    ├── ssh_client.py
+    └── hasura.py
 ```
-
-Private keys and passwords are **gitignored**. The repo ships a sample `pyencoder` profile only. Operators customize on the server.
 
 ---
 
 ## Changelog
 
-- **v1.0.8** - Updated builder.py docstring and note.
-- **v1.0.7** - Fix syntax error in main.py (broken newline in RABBITMQ_CONFIG block).
-- **v1.0.6** - Remove custom env vars from config.json that caused Docker Compose warnings. Logging defaults are internal to the container.
-- **v1.0.5** - Remove harmful rabbitmq_config.json, fix local dev fallback message, clean up stale references.
-- **v1.0.4** - Rebuilt from clean source to verify all fixes are baked in.
-- **v1.0.3** - Fix remote image: COPY agent code + configs into Docker image so container works without bind mount.
-- **v1.0.2** - Public release. Removed dev tools, config templates. Fresh Docker build.
-- **v1.0.1** - Public release. MythicMeta-compliant repo structure, pre-built Docker Hub image, Apache 2.0 license.
-- **v1.0.0** - Public release. Remote encoder via SSH/SFTP, session logging, config hot-reload.
-- **v0.13.0** - Auto-install tools on remote servers. Success/fail strings in profile JSON. ChooseOneCustom timeout.
-- **v0.11.0** - File-based multi-profile config. Per-profile SSH, bypass profiles, auto-scaffold.
-- **v0.10.0** - Shellcode deduplication via Hasura + MythicRPC. Auto-rebuild with fresh UUID.
-- **v0.9.0** - SSH key authentication. `Regenerate Shellcode` build param.
-- **v0.5.1** - `resp.payload` lowercase fix.
+- **v2.1.0** — Clean public release. Removed dev docs, cleaned up gitignore, updated documentation for v2.
+- **v2.0.0** — Flat-file configs at `/Mythic/` root. Mythic User Secrets for SSH keys. Paperclip-editable. Fixed sync spam bug.
+- **v1.0.9** — Author sticker, `rabbitmq_config.json` with correct Docker service names.
+- **v1.0.8** — Rebuilt from clean source to verify all fixes.
+- **v1.0.7** — Fix syntax error in main.py.
+- **v1.0.6** — Remove custom env vars from config.json that caused Docker Compose warnings.
+- **v1.0.5** — Remove harmful `rabbitmq_config.json`, fix local dev fallback.
+- **v1.0.4** — Public release. Removed dev tools, config templates. Fresh Docker build.
+- **v1.0.3** — MythicMeta-compliant repo structure, pre-built Docker Hub image, Apache 2.0 license.
+- **v1.0.0** — Initial public release.

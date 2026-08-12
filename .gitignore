@@ -16,8 +16,7 @@ install_test*.txt
 *.log
 screenshots/
 
-## Dev/test scripts (NOT in the container, but tracked in repo)
-# test_encoders/ is tracked for operator use
+## Dev tooling
 mythic-mcp-conf.json
 .mcp.json
 .claude/
@@ -25,7 +24,6 @@ mythic-mcp-conf.json
 ## Python
 __pycache__/
 *.py[cod]
-Payload_Type/dolos/__pycache__/
 **/__pycache__/
 **/*.pyc
 
@@ -51,25 +49,9 @@ rabbitmq_config.local.json
 .venv/
 dev_examples/
 
-## Config secrets - never track private keys or operator-modified profiles
-## The boilerplate configs in Payload_Type/dolos/configs/ ARE tracked (sample only).
-## Operators put real keys/profiles on the server - those are never committed.
-Payload_Type/dolos/configs/encoders/*/id_*
-Payload_Type/dolos/configs/encoders/*/ssh_key
-Payload_Type/dolos/configs/encoders/*/*/id_*
-Payload_Type/dolos/configs/encoders/*/*/ssh_key
-Payload_Type/dolos/configs/ssh_keys/*/id_*
-Payload_Type/dolos/configs/ssh_keys/*/ssh_key
-!Payload_Type/dolos/configs/ssh_keys/*/*.pub
-!Payload_Type/dolos/configs/encoders/*/*.pub
-!Payload_Type/dolos/configs/encoders/*/*/*.pub
-Payload_Type/dolos/configs/encoders/*/bypass_profiles/*.json
-Payload_Type/dolos/configs/encoders/*/*/bypass_profiles/*.json
-
 ## RabbitMQ config (generated at runtime by mythic-cli, contains passwords)
 Payload_Type/dolos/rabbitmq_config.json
 Payload_Type/dolos/rabbitmq_config.local.json
 
-## Install scripts are tracked in configs/tools/.
-## Only .gitignore in there is for binaries operators may drop in.
-## The live server's tools/ at dolos_profiles/tools/ is gitignored via .dockerignore.
+## Dev planning docs (not shipped to users)
+docs/*.code-workspace

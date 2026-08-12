@@ -1,8 +1,9 @@
-# Dolos container .dockerignore
+# Dolos v2 container .dockerignore
 # Build context: Payload_Type/dolos/ → InstalledServices/dolos/
 #
-# Agent code (main.py, dolos/, configs/) is COPY'd into /Mythic/ so the
-# image works without a bind mount. Only dev/test/local files are excluded.
+# Agent code is COPY'd into /Mythic/ so the image works without a bind mount.
+# Flat-file configs (00_*.json, 00_*.py, etc.) are also COPY'd.
+# Only dev/test/local files are excluded.
 
 # Python bytecode
 __pycache__/
@@ -27,7 +28,5 @@ __pycache__/
 rabbitmq_config.json
 rabbitmq_config.local.json
 
-# Local docs
-CLAUDE.md
-PLAN.md
-DECISIONS.md
+# Dev docs not needed in container
+*.md
