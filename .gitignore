@@ -15,6 +15,7 @@ reference_code/
 install_test*.txt
 *.log
 screenshots/
+!assets/screenshots/
 
 ## Dev tooling
 mythic-mcp-conf.json
