@@ -91,7 +91,7 @@ in Mythic's UI. The wrapped payload's C2 is already embedded — no C2 profile s
 ### Build Pipeline
 
 ```
-Operator → Mythic → Dolos container SSH  > Remote sserver
+Operator > Mythic > Dolos container SSH  > Remote sserver
 SFTP > Upload payload + files
 SSH  > Run encoder command
 SSH  < Log Terminal Msg in Mythic 
