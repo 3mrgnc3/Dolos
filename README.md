@@ -1,8 +1,9 @@
 # <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Dolos - The Craftsman of Lies
 
-**[Mythic](https://github.com/its-a-feature/Mythic) wrapper payload type — encode shellcode on your own remote/external infrastructure with traditional scripting and tools.**
+**[Mythic](https://github.com/its-a-feature/Mythic) Agent Wrapper Service type**
 
-Dolos is **encoder-agnostic**: it supports all shellcode and processed payload types, relying on your own pre-configured remote SSH server with whatever tools you want installed. Connect to your own licensed copy of [Balliskit's ShellcodePack](https://balliskit.com/) and have all the processing and logs ingested automatically into Mythic's database. The included PyEncoder is a starting example to demonstrate the capabilities.
+Dolos is **encoder-agnostic**: it supports all shellcode and processed payload types, relying on your own pre-configured remote SSH server with whatever tools you want installed. 
+For example, Connect to your own licensed copy of [Balliskit's ShellcodePack](https://balliskit.com/) and have all the processing and logs ingested automatically into Mythic's database. The included PyEncoder is a starting example to demonstrate the capabilities.
 
 ---
 
@@ -10,12 +11,12 @@ Dolos is **encoder-agnostic**: it supports all shellcode and processed payload t
 
 <table>
 <tr>
-<td width="50%"><img src="assets/screenshots/create_wrapper_dolos_selected.png" alt="Create Wrapper - Dolos Selected"><br><em>Create Wrapper with Dolos selected</em></td>
-<td width="50%"><img src="assets/screenshots/step2_build_params.png" alt="Build Parameters"><br><em>Build parameters — Encoder, Bypass, Timeout</em></td>
+<td width="50%"><img src="assets/screenshots/create_wrapper_dolos_selected.png" alt="Create Wrapper - Dolos Selected"><br><em>Create Wrapper</em></td>
+<td width="50%"><img src="assets/screenshots/step2_build_params.png" alt="Build Parameters"><br><em>Build parameters</em></td>
 </tr>
 <tr>
-<td width="50%"><img src="assets/screenshots/encoder_selected_pyencoder.png" alt="Encoder Selected"><br><em>Encoder dropdown with PyEncoder selected</em></td>
-<td width="50%"><img src="assets/screenshots/installed_services_dolos.png" alt="Installed Services"><br><em>Dolos in Installed Services</em></td>
+<td width="50%"><img src="assets/screenshots/encoder_selected_pyencoder.png" alt="Encoder Selected"><br><em>Select Encoders</em></td>
+<td width="50%"><img src="assets/screenshots/installed_services_dolos.png" alt="Installed Services"><br><em>Edit json Encoder/Bypass Profiles</em></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/screenshots/docs_index_final.png" alt="Documentation"><br><em>In-app documentation (Hugo)</em></td>
@@ -58,7 +59,7 @@ Install whatever tools you need on your SSH server:
 - Custom scripts — anything that takes input and produces output
 
 If `install_tools: true` is set in the profile, Dolos will automatically run
-install scripts on the remote server before encoding.
+install scripts on the remote server before encoding if required.
 
 ### 4. Add SSH credentials
 
@@ -90,12 +91,14 @@ in Mythic's UI. The wrapped payload's C2 is already embedded — no C2 profile s
 ### Build Pipeline
 
 ```
-Operator → Mythic → Dolos container ──SSH──→ Remote server
-                                      ──SFTP──→ Upload payload
-                                      ──SSH────→ Run encoder command
-                                      ──SFTP──→ Download result
-                                      ──SFTP──→ Cleanup workdir
-                              ← Result (any format) + Session log (.session.json)
+Operator → Mythic → Dolos container SSH  > Remote sserver
+SFTP > Upload payload + files
+SSH  > Run encoder command
+SSH  < Log Terminal Msg in Mythic 
+SFTP < Download result
+SFTP > Cleanup workdir
+
+Result (any format output) + Session log (.session.json)
 ```
 
 ### What Gets Logged (Session Log)
