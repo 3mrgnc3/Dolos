@@ -1,4 +1,4 @@
-# <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Dolos - The Craftsman of Lies
+# <img src="agent_icons/dolos.svg" width="120" height="120" alt="Dolos Logo"></br> Dolos - The Craftsman of Lies
 
 **[Mythic](https://github.com/its-a-feature/Mythic) Agent Wrapper Service type**
 
@@ -26,7 +26,7 @@ For example, Connect to your own licensed copy of [Balliskit's ShellcodePack](ht
 
 ---
 
-## Quick Start
+## <img src="3mrgnc3_stricker_v2.png" width="120" height="120" alt="3mrgnc3 Sticker"></br> Quick Start
 
 ### 1. Install into Mythic
 
